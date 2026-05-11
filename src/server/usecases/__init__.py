@@ -1,0 +1,1 @@
+from .interview_assistant_usecase.app import InterViewAssistant
