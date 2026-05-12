@@ -7,7 +7,7 @@ import threading
 import time
 import sys
 import os
-from helpers import get_config
+from server.helpers import get_config
 
 # حاولت أحافظ على نفس نمط الـ Imports بتاعتك
 # لو عندك ملف config زي الـ TTS، ممكن تستخدمه هنا

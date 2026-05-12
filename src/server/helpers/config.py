@@ -61,5 +61,21 @@ class Config(BaseSettings):
     TTS_AUDIO_QUEUE_SIZE:int=1000
 # ========================= STT Configuration ================#
     STT_MODEL_PATH:str=None
+    
+# ========================= Detection Configuration ================#
+    LAYER_ONE_NAME:str="Spectra0"
+    LAYER_ONE_WEIGHT:float=1
+
+    LAYER_TWO_NAME:str="VIT"
+    LAYER_TWO_WEIGHT:float=1
+    VIT_DATASET_NAME:str="ASVspoof5"
+    VIT_VISIUALIZATION:str="MelSpectrogram"
+    LAYER_THREE_NAME:str="RawNet2"
+    LAYER_THREE_WEIGHT:float=1
+
+    LAYER_FOUR_NAME:str="liveness"
+    LAYER_FOUR__MODELPATH:str=r"src\server\infrastructure\behaviour_liveness_detection_model"
+    LAYER_FOUR_WEIGHT:float=1
+
 def get_config()->Config:
     return Config()

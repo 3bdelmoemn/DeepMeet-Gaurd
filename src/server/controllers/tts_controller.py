@@ -1,12 +1,12 @@
 import pyaudio
 import numpy as np
-from infrastructure.tts import NeuTTS
+from server.infrastructure.tts import NeuTTS
 import threading
 import time
 from queue import Queue
-from helpers import get_config
-from models.enums import TTSCodec,TTSBackbone
-from models.interfaces import TTSInterface
+from server.helpers import get_config
+from server.models.enums import TTSCodec,TTSBackbone
+from server.models.interfaces import TTSInterface
 import os
 
 # Add this BEFORE initializing NeuTTS

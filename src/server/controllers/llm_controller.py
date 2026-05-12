@@ -1,6 +1,6 @@
-from models.interfaces import BaseLLMConfigurationInterface
-from helpers import get_config
-from models.enums import LLMProvider, LLMExecutionMode
+from server.models.interfaces import BaseLLMConfigurationInterface
+from server.helpers import get_config
+from server.models.enums import LLMProvider, LLMExecutionMode
 from typing import Dict, Any, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI

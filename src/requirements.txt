@@ -14,7 +14,6 @@ aiohttp==3.13.2
 # LLM Providers
 openai==2.8.1
 google-genai==1.51.0
-google-generativeai==0.8.5
 anthropic==0.74.0
 cohere==5.20.0
 ollama==0.6.1
@@ -31,19 +30,20 @@ langchain-ollama==1.0.1
 langgraph==1.0.3
 
 # ML / Data
-numpy==2.2.6
+numpy>=2.4.4
 pandas==2.3.3
 scikit-learn==1.8.0
+xgboost
 joblib==1.5.3
 
 # Deep Learning
-torch==2.6.0+cpu
-torchaudio==2.6.0+cpu
-torchvision==0.21.0+cpu
-transformers==4.56.1
+torch>=2.11.0
+torchaudio>=2.11.0
+torchvision>=0.22.0
+transformers
 tokenizers==0.22.1
 onnxruntime==1.23.2
-huggingface-hub==0.36.0
+huggingface-hub>=1.14.0
 safetensors==0.7.0
 
 # Speech / Audio
@@ -68,3 +68,6 @@ tqdm==4.67.1
 # Dev
 pytest==9.0.2
 pre-commit==4.5.1
+
+# fake audio detection
+Jabberjay==0.0.11

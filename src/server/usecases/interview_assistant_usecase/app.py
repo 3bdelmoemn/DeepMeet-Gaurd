@@ -1,6 +1,6 @@
-from controllers import LLMController, TTSController, preprocess_before_llm, STTController
-from helpers import get_config
-from models.schemas import UserInfo, OrganizationInfo
+from server.controllers import LLMController, TTSController, preprocess_before_llm, STTController
+from server.helpers import get_config
+from server.models.schemas import UserInfo, OrganizationInfo
 import os
 import time
 
