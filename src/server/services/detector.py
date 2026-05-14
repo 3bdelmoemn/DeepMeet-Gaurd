@@ -1,0 +1,3 @@
+from server.controllers import FakeAudioDetectionController
+
+detector=FakeAudioDetectionController()

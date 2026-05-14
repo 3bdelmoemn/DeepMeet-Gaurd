@@ -40,3 +40,7 @@ class OrganizationInfo(BaseModel):
     tech_stack: List[str] = Field(..., description="List of technologies used")
     role: str = Field(..., description="The role being applied for")
     responsibilities: List[str] = Field(..., description="List of responsibilities for the role")
+    
+class InterviewSetupRequest(BaseModel):
+    user_info: UserInfo
+    organization_info: OrganizationInfo

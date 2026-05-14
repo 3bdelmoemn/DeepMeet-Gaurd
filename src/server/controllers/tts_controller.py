@@ -91,7 +91,7 @@ class TTSController(TTSInterface):
         self.is_generating = False
         self.stop_flag = False
         
-
+    
     
     def setup(self, ref_audio_path: str, ref_text_content: str):
         """
@@ -162,18 +162,14 @@ class TTSController(TTSInterface):
                 time.sleep(0.0005)
     
     def _generate_audio(self, text: str):
-        """
-        Generate audio chunks and buffer them
-        Runs in separate thread
-        """
-        
         self.is_generating = True
-        
         try:
-            
+            # ✅ FIX: pad short text to avoid zero-size audio buffer
+            MIN_CHARS = 20
+            if len(text.strip()) < MIN_CHARS:
+                text = text.strip() + "." * (MIN_CHARS - len(text.strip()))
+
             chunk_count = 0
-            
-            # Generate chunks and add to buffer
             for chunk in self.tts.infer_stream(
                 text,
                 self.ref_codes,
@@ -181,43 +177,50 @@ class TTSController(TTSInterface):
             ):
                 if self.stop_flag:
                     break
-                
-                # Convert to proper format
+
+                # ✅ FIX: skip empty chunks to avoid zero-size reduction error
+                if chunk is None or chunk.size == 0:
+                    continue
+
                 audio_data = chunk.astype(np.float32)
-                
-                # Add to buffer
+
                 try:
                     self.audio_buffer.put(audio_data, block=True, timeout=1.0)
                 except:
                     if self.stop_flag:
                         break
                     continue
-                
+
                 chunk_count += 1
-                
-                # Start playback after minimal buffering
+
                 if chunk_count == self.min_buffer_size and not self.is_speaking:
                     playback_thread = threading.Thread(
                         target=self._play_audio,
                         daemon=True
                     )
                     playback_thread.start()
-            
-            # Start playback if not started yet (short text case)
+
             if not self.is_speaking and chunk_count > 0:
                 playback_thread = threading.Thread(
                     target=self._play_audio,
                     daemon=True
                 )
                 playback_thread.start()
-            
-            
-            
+
+        except ValueError as e:
+            # ✅ FIX: catch the zero-size numpy error specifically
+            if "zero-size array" in str(e):
+                import logging
+                logging.getLogger(__name__).warning(
+                    "TTS skipped: text too short for streaming params. "
+                    "Try increasing TTS_STREAMING_FRAMES_PER_CHUNK in config."
+                )
+            else:
+                raise
         except Exception as e:
             print(f"❌ Generation error: {e}")
             import traceback
             traceback.print_exc()
-        
         finally:
             self.is_generating = False
     
@@ -316,38 +319,35 @@ class TTSController(TTSInterface):
             time.sleep(0.0001)
     
     def cleanup(self):
-        """
-        Clean up resources properly
-        """
-        
-
-        
-        # Stop any ongoing speech
         self.stop()
-        
-        # Close stream if still open
+
+        # ✅ FIX: force llama __del__ to run NOW while ctypes lib is still alive
+        if hasattr(self, 'tts') and self.tts is not None:
+            try:
+                if hasattr(self.tts, 'backbone') and self.tts.backbone is not None:
+                    if hasattr(self.tts.backbone, 'close'):
+                        self.tts.backbone.close()
+                    self.tts.backbone = None
+            except Exception:
+                pass
+            del self.tts          # trigger __del__ explicitly
+            self.tts = None
+
+            import gc
+            gc.collect()          # ✅ force destructor to run immediately
+
         if self.stream:
             try:
                 self.stream.stop_stream()
                 self.stream.close()
             except:
                 pass
-        
-        # Terminate PyAudio
+            self.stream = None
+
         if self.audio:
             try:
                 self.audio.terminate()
             except:
                 pass
-        
-        # Close TTS model properly (prevents cleanup warnings)
-        if hasattr(self.tts, 'backbone'):
-            try:
-                if hasattr(self.tts.backbone, 'close'):
-                    self.tts.backbone.close()
-                elif hasattr(self.tts.backbone, '__del__'):
-                    del self.tts.backbone
-            except:
-                pass
-        
-        print("✅ Cleanup complete!")
+            self.audio = None
+

@@ -1,1 +1,1 @@
-from .interview_schema import UserInfo, OrganizationInfo
+from .interview_schema import UserInfo, OrganizationInfo,InterviewSetupRequest
