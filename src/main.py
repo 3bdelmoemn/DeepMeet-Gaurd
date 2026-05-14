@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server.routers import health_router,data_router,setup_router,communication_router
+from server.routers import health_router,data_router,setup_router,communication_router,detection_router
 from server.services import detector, simulator
 from server.helpers import get_config
 import logging
@@ -48,6 +48,5 @@ app.include_router(health_router)
 app.include_router(data_router)
 app.include_router(setup_router)
 app.include_router(communication_router)
-# app.include_router(detection_router)
-# app.include_router(cleanup_router)
+app.include_router(detection_router)
 

@@ -10,7 +10,8 @@ class Config(BaseSettings):
     # ======================= storage Configuration ================#
     SIMULATOR_STORAGE_PATH:str=None
     DETECTOR_STORAGE_PATH:str=None
-
+    DETECTOR_MAX_DURATION:int=15
+    DETECTOR_PERIOD_INTERVAL:int=60
     #======================== LLM Configuration ================#
     # Mode:
     LLM_MODE:str=None
