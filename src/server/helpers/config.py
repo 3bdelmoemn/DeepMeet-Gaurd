@@ -7,6 +7,9 @@ class Config(BaseSettings):
     #======================== APP Info =========================#
     APP_NAME:str
     APP_VERSION:str
+    # ======================= storage Configuration ================#
+    SIMULATOR_STORAGE_PATH:str=None
+    DETECTOR_STORAGE_PATH:str=None
 
     #======================== LLM Configuration ================#
     # Mode:
@@ -59,9 +62,13 @@ class Config(BaseSettings):
     TTS_FRAMES_PER_BUFFER:int=1024
     TTS_MIN_BUFFER_SIZE:int=10
     TTS_AUDIO_QUEUE_SIZE:int=1000
+    DEFAULT_REF_AUDIO_PATH:str=None
+    DEFAULT_REF_TEXT_PATH:str=None
+    COOLDOWN_SECONDS:float=None
 # ========================= STT Configuration ================#
     STT_MODEL_PATH:str=None
-    
+    MIN_WORDS:int=None
+    DEDUP_TTL:float=None
 # ========================= Detection Configuration ================#
     LAYER_ONE_NAME:str="Spectra0"
     LAYER_ONE_WEIGHT:float=1

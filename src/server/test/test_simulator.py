@@ -1,9 +1,9 @@
-from server.utilities import convert_to_wav
-from server.usecases import InterViewAssistant
+# from server.utilities import convert_to_wav
+from server.services import simulator
 from server.models.schemas import UserInfo,OrganizationInfo
 
-ref_text_path=r"D:\Education\GraduationProject\last version\DeepMeet-Gaurd\src\assets\refrences\my text.txt"
-ref_audio_path=r"D:\Education\GraduationProject\last version\DeepMeet-Gaurd\src\assets\refrences\my real voice.wav"
+# ref_text_path=r"D:\Education\GraduationProject\last version\DeepMeet-Gaurd\src\assets\refrences\my text.txt"
+# ref_audio_path=r"D:\Education\GraduationProject\last version\DeepMeet-Gaurd\src\assets\refrences\my real voice.wav"
 
 
 user_info={
@@ -41,7 +41,6 @@ organization_info={
 }
 
 if __name__ == "__main__":
-    assistant=InterViewAssistant()
-    assistant.setup(ref_audio_path=ref_audio_path,ref_text_content=ref_text_path)
-    assistant.impersonate(user_info=UserInfo(**user_info),organization_info=OrganizationInfo(**organization_info))
-    assistant.communicate()
+    simulator.setup()
+    simulator.impersonate(user_info=UserInfo(**user_info),organization_info=OrganizationInfo(**organization_info))
+    print(simulator.communicate())

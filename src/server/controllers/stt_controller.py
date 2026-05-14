@@ -105,7 +105,7 @@ class STTController:
         with self.audio_queue.mutex:
             self.audio_queue.queue.clear()
         
-        print("🎧 STT Stream Started...")
+        print("Start Talking... ")
 
         # 1. Start Audio Stream (Producer)
         try:
@@ -148,7 +148,6 @@ class STTController:
         if self.process_thread:
             self.process_thread.join(timeout=1.0)
             
-        print("🛑 STT Stream Stopped.")
 
     def get_new_text(self):
         """
@@ -168,7 +167,7 @@ class STTController:
         self.model = None
         self.recognizer = None
         self._is_connected = False
-        print("✅ STT Cleanup complete!")
+        
 
     # ================= INTERNAL METHODS =================
 

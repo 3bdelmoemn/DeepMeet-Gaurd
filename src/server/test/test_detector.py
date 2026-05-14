@@ -1,21 +1,18 @@
-from ..controllers.fake_audio_detection_controller import FakeAudioDetectionController
+from server.services import detector
 import warnings
 import logging
 import os
 from tqdm import  tqdm
 import pprint
-# إخفاء torch distributed warning
 logging.getLogger("torch.distributed.elastic").setLevel(logging.ERROR)
 
-# إخفاء transformers warnings
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
 
-# إخفاء tqdm progress bars
 os.environ["TQDM_DISABLE"] = "1"
 
-detector=FakeAudioDetectionController()
-TEST_SAMPLES_DIR=r"D:\Education\GraduationProject\last version\DeepMeet-Gaurd\src\assets\test_samples"
+
+TEST_SAMPLES_DIR=r"server/test/test_samples"
 
 if __name__=="__main__":
     if detector.setup():

@@ -1,1 +1,1 @@
-from .interview_assistant_usecase.app import InterViewAssistant
+from .interview_assistant_usecase.interview_assisstant_usecase import InterViewAssistant

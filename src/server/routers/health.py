@@ -1,14 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 router = APIRouter(tags=["health"])
 
 
-@router.get("/api/health")
-async def health_check():
-    from main import assistant, stt_thread
-    
+@router.get("/deepmeet/health")
+async def health_check(request: Request):
+    simulator = request.app.state.simulator
+    detector = request.app.state.detector
+
     return {
         "status": "healthy",
-        "assistant_ready": assistant is not None,
-        "listening_active": stt_thread is not None and stt_thread.is_alive() if stt_thread else False
+        "simulator_ready": simulator is not None,
+        "detector_ready": detector is not None,
     }
