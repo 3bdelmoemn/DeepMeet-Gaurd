@@ -56,7 +56,7 @@ phonemizer==3.3.0
 vosk==0.3.45
 pyspellchecker==0.8.4
 aiofiles==25.1.0
-
+soundcard 
 # Local Models / TTS
 llama-cpp-python==0.3.16
 neucodec>=0.0.4

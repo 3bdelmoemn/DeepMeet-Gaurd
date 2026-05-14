@@ -106,45 +106,4 @@ def convert_to_wav(input_path: str) -> str:
     return str(output_path)
 
 
-# def record_speaker_audio(duration: int = 8, sample_rate: int = 44100):
-#     print("🎙️ Recording directly from system speakers (WASAPI Loopback)...")
-    
-#     try:
-#         # 1. بنسأل ويندوز: إيه السماعة الأساسية اللي مطلعة صوت دلوقتي؟
-#         default_speaker = sc.default_speaker()
-        
-#         # 2. بنجيب المايك الافتراضي اللي بيسجل من السماعة دي (Loopback)
-#         mics = sc.all_microphones(include_loopback=True)
-#         loopback_mic = None
-        
-#         for mic in mics:
-#             if mic.isloopback and mic.name == default_speaker.name:
-#                 loopback_mic = mic
-#                 break
-                
-#         # لو ملقاش الـ Loopback (نادر جداً)، هيستخدم المايك العادي كاحتياطي
-#         if not loopback_mic:
-#             print("⚠️ Loopback not found, falling back to default mic.")
-#             loopback_mic = sc.default_microphone()
-            
-#         # 3. بدء التسجيل!
-#         with loopback_mic.recorder(samplerate=sample_rate, channels=2) as mic:
-#             recording = mic.record(numframes=sample_rate * duration)
-            
-#         # 4. حفظ الملف
-# # 4. حفظ الملف
-#             os.makedirs("detection_audio", exist_ok=True)
-#             filename = f"speaker_{int(time.time())}.wav"
 
-#             # Create the relative path: "detection_audio/speaker_123.wav"
-#             relative_filepath = os.path.join("detection_audio", filename)
-
-#             # Convert THAT relative path into an absolute path
-#             filepath = os.path.abspath(relative_filepath)
-
-#             sf.write(filepath, recording, sample_rate)
-#             print(f"✅ Saved successfully: {filepath}")
-#             return filepath
-#     except Exception as e:
-#         print(f"❌ Recording error: {e}")
-#         return None
