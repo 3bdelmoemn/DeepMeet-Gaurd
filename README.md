@@ -755,6 +755,7 @@ setx PHONEMIZER_ESPEAK_PATH "C:\Program Files\eSpeak NG"
 
 </details>
 
+
 <details>
 <summary><strong>❌ STT model not found / FileNotFoundError</strong></summary>
 
