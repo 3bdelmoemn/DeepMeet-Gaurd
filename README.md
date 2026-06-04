@@ -98,7 +98,7 @@ DeepMeet Guard was built to:
 - 🔄 **Continuous Session Monitoring** — Captures and analyzes audio in configurable time periods across the full interview
 
 ### 🌐 Platform
-- 🖥️ **Full-Stack Web Application** — Unified Next.js interface for both simulation and detection workflows
+- 🖥️ **Full-Stack Web Application:** — Unified Next.js interface for both simulation and detection workflows
 - 🔌 **RESTful API** — Clean, documented FastAPI endpoints with automatic Swagger UI
 - 🤝 **Multi-Agent LangGraph Workflow** — Coordinated pipeline of specialized AI agents handling each stage of simulation
 
