@@ -410,23 +410,22 @@ cd DeepMeet-Gaurd/src
 
 #### Step 2 — Create Python Virtual Environment
 
+## Requirements :
+---
+- python 3.11
+
+#### Install Python Using "**Miniconda**" :
+1) Download and install Miniconda From  >>>  **[Her](https://www.anaconda.com/docs/getting-started/miniconda/main)**
+---
+2) Create A New Conda-Enviroment Using The Followed Command :
 ```bash
-# Create a virtual environment with Python 3.11 specifically
-python3.11 -m venv venv
+$ conda create -n dmg python=3.11
+```
+3) Activate Custom Conda-Enviroment Using The Followed Command :
+```bash
+$ conda activate dmg
 ```
 
-Activate the environment:
-
-```bash
-# Windows (PowerShell)
-venv\Scripts\Activate.ps1
-
-# Windows (Command Prompt)
-venv\Scripts\activate.bat
-
-# Linux / macOS
-source venv/bin/activate
-```
 
 ---
 
