@@ -419,14 +419,13 @@ cd DeepMeet-Gaurd/src
 ---
 2) Create A New Conda-Enviroment Using The Followed Command :
 ```bash
-$ conda create -n dmg python=3.11
+conda create -n dmg python=3.11
 ```
-3) Activate Custom Conda-Enviroment Using The Followed Command :
+---
+3) Activate Custom Conda-Enviroment Using The Followed Command:
 ```bash
-$ conda activate dmg
+conda activate dmg
 ```
-
-
 ---
 
 #### Step 3 — Install eSpeak-NG (TTS Dependency)
@@ -511,6 +510,26 @@ pip install -r requirements.txt
 
 ---
 
+
+#### Step 8 — Configure Hugging Face Authentication
+
+Some models require a Hugging Face access token before they can be downloaded.
+     
+1. Visit: **[hugging-face 🤗 ](https://huggingface.co/settings/tokens)**
+2. Create a new token with **Read** permissions.
+3. Copy your token and run:
+
+```bash
+hf auth login
+```
+
+4. Paste your token when prompted and press Enter.
+
+That's it — the token will be stored locally and used automatically when downloading Hugging Face models.
+
+
+---
+
 ### 🌐 Client Setup
 
 #### Step 1 — Navigate to Client Directory
@@ -545,7 +564,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ```bash
 # From the src/ directory with venv activated
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 | Endpoint | URL |
