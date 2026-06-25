@@ -1,7 +1,9 @@
 <div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0f0c29,50:302b63,100:24243e&height=220&section=header&text=DeepMeet%20Guard&fontSize=62&fontColor=ffffff&fontAlignY=40&desc=Secure%20Your%20Interviews.%20Protect%20Your%20Integrity.&descAlignY=62&descSize=20" alt="DeepMeet Guard Banner" width="100%" />
-
+<p align="center">
+  <img src="./src/logo/22eedab1-774d-4ae2-90c3-34857f73fe74.jpeg" alt="DeepMeet Guard Logo" width="200">
+</p>
 <br/>
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
