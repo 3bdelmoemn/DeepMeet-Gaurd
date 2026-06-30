@@ -3,15 +3,26 @@ import numpy as np
 from server.infrastructure.tts import NeuTTS
 import threading
 import time
+import logging
 from queue import Queue
 from server.helpers import get_config
 from server.models.enums import TTSCodec,TTSBackbone
 from server.models.interfaces import TTSInterface
 import os
 
-# Add this BEFORE initializing NeuTTS
-os.environ['PHONEMIZER_ESPEAK_LIBRARY'] = r'C:\Program Files\eSpeak NG\libespeak-ng.dll'
-os.environ['PHONEMIZER_ESPEAK_PATH'] = r'C:\Program Files\eSpeak NG'
+logger = logging.getLogger(__name__)
+
+# eSpeak config: prefer env vars, fall back to platform defaults
+if 'PHONEMIZER_ESPEAK_LIBRARY' not in os.environ:
+    _default_lib = (r'C:\Program Files\eSpeak NG\libespeak-ng.dll'
+                    if os.name == 'nt' else '/usr/lib/x86_64-linux-gnu/libespeak-ng.so.1')
+    if os.path.exists(_default_lib):
+        os.environ['PHONEMIZER_ESPEAK_LIBRARY'] = _default_lib
+if 'PHONEMIZER_ESPEAK_PATH' not in os.environ:
+    _default_path = (r'C:\Program Files\eSpeak NG'
+                     if os.name == 'nt' else '/usr/bin')
+    if os.path.isdir(_default_path):
+        os.environ['PHONEMIZER_ESPEAK_PATH'] = _default_path
 class TTSController(TTSInterface):
     """
     Ultra-smooth TTS Controller for Interview AI Tool
@@ -86,10 +97,14 @@ class TTSController(TTSInterface):
         self.audio_buffer = Queue(maxsize=250)
         self.min_buffer_size = 2
         
-        # Control flags
+        # Control flags — use Events for efficient waiting
         self.is_speaking = False
         self.is_generating = False
         self.stop_flag = False
+        self._generation_done = threading.Event()
+        self._playback_done = threading.Event()
+        self._generation_done.set()   # Initially done
+        self._playback_done.set()     # Initially done
         
     
     
@@ -131,19 +146,21 @@ class TTSController(TTSInterface):
         # Stop any previous speech
         self.stop()
         
-        # Wait for previous to finish
-        while self.is_speaking or self.is_generating:
-            time.sleep(0.0001)
+        # Wait for previous to finish (Event-based, no CPU spin)
+        self._generation_done.wait(timeout=10)
+        self._playback_done.wait(timeout=10)
         
         # Clear buffer
         while not self.audio_buffer.empty():
             try:
                 self.audio_buffer.get_nowait()
-            except:
+            except Exception:
                 break
         
         # Reset flags
         self.stop_flag = False
+        self._generation_done.clear()
+        self._playback_done.clear()
         
         # Start generation + playback
         gen_thread = threading.Thread(
@@ -154,12 +171,9 @@ class TTSController(TTSInterface):
         gen_thread.start()
         
         if wait:
-            # Wait for generation to finish
-            while self.is_generating:
-                time.sleep(0.0001)
-            # Wait for playback to finish
-            while self.is_speaking:
-                time.sleep(0.0005)
+            # Wait for generation and playback (Event-based, no CPU spin)
+            self._generation_done.wait(timeout=60)
+            self._playback_done.wait(timeout=60)
     
     def _generate_audio(self, text: str):
         self.is_generating = True
@@ -186,7 +200,7 @@ class TTSController(TTSInterface):
 
                 try:
                     self.audio_buffer.put(audio_data, block=True, timeout=1.0)
-                except:
+                except Exception:
                     if self.stop_flag:
                         break
                     continue
@@ -208,21 +222,18 @@ class TTSController(TTSInterface):
                 playback_thread.start()
 
         except ValueError as e:
-            # ✅ FIX: catch the zero-size numpy error specifically
             if "zero-size array" in str(e):
-                import logging
-                logging.getLogger(__name__).warning(
+                logger.warning(
                     "TTS skipped: text too short for streaming params. "
                     "Try increasing TTS_STREAMING_FRAMES_PER_CHUNK in config."
                 )
             else:
                 raise
         except Exception as e:
-            print(f"❌ Generation error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Generation error: %s", e, exc_info=True)
         finally:
             self.is_generating = False
+            self._generation_done.set()
     
     def _play_audio(self):
         """
@@ -252,7 +263,7 @@ class TTSController(TTSInterface):
                 # Get chunk from buffer
                 try:
                     chunk = self.audio_buffer.get(block=True, timeout=0.1)
-                except:
+                except Exception:
                     # Buffer empty - check if generation finished
                     if not self.is_generating:
                         # Wait a bit for any remaining chunks
@@ -269,16 +280,14 @@ class TTSController(TTSInterface):
                 # This ensures smooth, continuous playback
                 try:
                     self.stream.write(chunk.tobytes(), exception_on_underflow=False)
-                except:
+                except Exception:
                     if self.stop_flag:
                         break
                     continue
 
             
         except Exception as e:
-            print(f"❌ Playback error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Playback error: %s", e, exc_info=True)
         
         finally:
             # Close stream
@@ -287,11 +296,12 @@ class TTSController(TTSInterface):
                     # Drain remaining audio to prevent cutoff
                     self.stream.stop_stream()
                     self.stream.close()
-                except:
+                except Exception:
                     pass
                 self.stream = None
             
             self.is_speaking = False
+            self._playback_done.set()
     
     def stop(self):
         """
@@ -303,7 +313,7 @@ class TTSController(TTSInterface):
         while not self.audio_buffer.empty():
             try:
                 self.audio_buffer.get_nowait()
-            except:
+            except Exception:
                 break
         
         # Wait for threads to stop
@@ -315,8 +325,8 @@ class TTSController(TTSInterface):
         """
         Wait until current speech completes
         """
-        while self.is_speaking or self.is_generating:
-            time.sleep(0.0001)
+        self._generation_done.wait(timeout=60)
+        self._playback_done.wait(timeout=60)
     
     def cleanup(self):
         self.stop()
@@ -340,14 +350,14 @@ class TTSController(TTSInterface):
             try:
                 self.stream.stop_stream()
                 self.stream.close()
-            except:
+            except Exception:
                 pass
             self.stream = None
 
         if self.audio:
             try:
                 self.audio.terminate()
-            except:
+            except Exception:
                 pass
             self.audio = None
 

@@ -7,11 +7,10 @@ import threading
 import time
 import sys
 import os
+import logging
 from server.helpers import get_config
 
-# حاولت أحافظ على نفس نمط الـ Imports بتاعتك
-# لو عندك ملف config زي الـ TTS، ممكن تستخدمه هنا
-# from helpers import get_config 
+logger = logging.getLogger(__name__)
 
 class STTController:
     """
@@ -36,8 +35,7 @@ class STTController:
     """
     
     def __init__(self):
-        # Configuration placeholders (Match your config style)
-        self.config=get_config()
+        self.config = get_config()
         self.sample_rate = 16000
         self.block_size = 4000  # Optimized for speed (0.25s latency)
         self.channels = 1       # Vosk needs Mono, but we capture Stereo and convert
@@ -53,40 +51,40 @@ class STTController:
         self.stream = None
         
         # Buffers
-        # audio_queue: بيخزن الصوت الخام عشان مفيش حاجة تضيع
+        # audio_queue: stores raw audio so nothing is lost
         self.audio_queue = queue.Queue()
-        # text_queue: بيخزن النص الجاهز عشان الـ Controller ياخده
+        # text_queue: stores finalized text for the controller to consume
         self.text_queue = queue.Queue()
         
         # Threads
         self.process_thread = None
 
-    def setup(self, model_path: str=None, device_index=None):
+    def setup(self, model_path: str = None, device_index=None):
         """
         Initialize the Model and Audio Device settings
         """
         if model_path is None or len(model_path.strip()) == 0:
             model_path = self.config.STT_MODEL_PATH
         if self._is_connected:
-            print("⚠️ STT is already connected.")
+            logger.warning("STT is already connected.")
             return
 
-        print(f"⏳ Loading STT Model from: {model_path} ...")
+        logger.info("Loading STT Model from: %s ...", model_path)
         
         if not os.path.exists(model_path):
-            model_path=self.config.STT_MODEL_PATH
-            print("model path not exist replacing with default path: ",model_path)
+            model_path = self.config.STT_MODEL_PATH
+            logger.warning("Model path not found, using default: %s", model_path)
 
         try:
             self.model = Model(model_path)
             self.recognizer = KaldiRecognizer(self.model, self.sample_rate)
             self.device_index = device_index
             self._is_connected = True
-            print("✅ STT Engine Ready.")
+            logger.info("✅ STT Engine Ready.")
             return self._is_connected
         except Exception as e:
-            print(f"❌ STT Setup Error: {e}")
-            raise e
+            logger.error("STT Setup Error: %s", e)
+            raise
 
     def start(self):
         """
@@ -105,7 +103,7 @@ class STTController:
         with self.audio_queue.mutex:
             self.audio_queue.queue.clear()
         
-        print("Start Talking... ")
+        logger.info("Start Talking...")
 
         # 1. Start Audio Stream (Producer)
         try:
@@ -119,7 +117,7 @@ class STTController:
             )
             self.stream.start()
         except Exception as e:
-            print(f"❌ Audio Stream Error: {e}")
+            logger.error("Audio Stream Error: %s", e)
             self._is_running = False
             return
 
@@ -141,7 +139,7 @@ class STTController:
             try:
                 self.stream.stop()
                 self.stream.close()
-            except:
+            except Exception:
                 pass
             self.stream = None
             
@@ -177,7 +175,7 @@ class STTController:
         NO processing here to prevent audio drops.
         """
         if status:
-            print(f"⚠️ Audio Status: {status}", file=sys.stderr)
+            logger.debug("Audio Status: %s", status)
             
         if self.stop_flag:
             return
@@ -203,45 +201,9 @@ class STTController:
                     result = json.loads(self.recognizer.Result())
                     text = result.get("text", "")
                     if text:
-                        self.text_queue.put(text) # Push to Main App
-                else:
-                    # Partial results could be handled here if needed
-                    pass
-                    
+                        self.text_queue.put(text)
+                        
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"❌ Transcribe Error: {e}")
-
-
-# ==========================================
-# ضيف ده في آخر الملف عشان تجرب الكلاس
-# ==========================================
-# if __name__ == "__main__":
-#     # 1. مسار الموديل (تأكد إنه صح)
-#     MODEL_PATH = r"D:\Education\Voice & Shield\Audio-Cloning-Detection\server\src\infrastructure\stt\vosk-model-en-us-0.22"
-
-#     stt = STTController()
-    
-#     try:
-#         # 2. التجهيز والتشغيل
-#         # لو عايز تحدد المايك/الكابل، ابعت device_index هنا
-#         stt.setup(MODEL_PATH) 
-#         stt.start()
-        
-#         print("🚀 System is running... (Press Ctrl+C to stop)")
-
-#         # 3. اللوب دي هي اللي بتخلي البرنامج ميفصلش!
-#         while True:
-#             # هات الكلام من الطابور (Queue)
-#             text = stt.get_new_text()
-            
-#             if text:
-#                 print(f"📝 Detected: {text}")
-            
-#             # ريح البروسيسور جزء من الثانية
-#             time.sleep(0.1)
-
-#     except KeyboardInterrupt:
-#         print("\n👋 Stopping...")
-#         stt.cleanup()
+                logger.error("Transcribe Error: %s", e)

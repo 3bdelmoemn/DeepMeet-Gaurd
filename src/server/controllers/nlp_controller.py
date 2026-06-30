@@ -6,6 +6,7 @@ English-only support with internal default configuration.
 
 import re
 import logging
+import threading
 from typing import List
 from abc import ABC, abstractmethod
 
@@ -660,15 +661,18 @@ class TextProcessor:
 
 
 _processor_instance: TextProcessor = None
+_processor_lock = threading.Lock()
 
 
 def _get_processor() -> TextProcessor:
-    """Get or create singleton TextProcessor instance."""
+    """Get or create singleton TextProcessor instance (thread-safe)."""
     global _processor_instance
-    
+
     if _processor_instance is None:
-        _processor_instance = TextProcessor()
-    
+        with _processor_lock:
+            if _processor_instance is None:
+                _processor_instance = TextProcessor()
+
     return _processor_instance
 
 
@@ -710,76 +714,3 @@ def preprocess_before_llm(text: str) -> str:
     """
     processor = _get_processor()
     return processor.process(text)
-
-
-# if __name__ == "__main__":
-#     logging.basicConfig(
-#         level=logging.INFO,
-#         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-#     )
-    
-#     print("=" * 100)
-#     print("STT PRE-PROCESSOR FOR LLM - PRODUCTION CONTROLLER LAYER")
-#     print("=" * 100)
-#     print()
-    
-#     test_cases = [
-#         "um the the meeting is is scheduled for uh tomorrow",
-#         "where is the the nearest cafe um i mean coffee shop",
-#         "what time is is the meeting uh scheduled for tomorrow",
-#         "okay so basically we need to finalize the the report by friday right",
-#         "how do i um you know configure the the settings properly",
-#         "the project deadline is is next week we we need to finish testing",
-#         "can you you help me with this issue im having trouble understanding",
-#         "uh basically the system is designed to handle multiple requests simultaneously",
-#         "what are are the the main features of of the new new product",
-#         "i mean the the performance has improved significantly over the last quarter you know",
-#         "um where where can i find the the documentation for this this api",
-#         "the team team needs to collaborate more effectively on this this initiative",
-#         "is is the the report ready for for submission",
-#         "we we should should probably uh discuss this this with the the team you know",
-#         "hanging determiner test the the the",
-#         "single word test hello",
-#         "two words only",
-#         "the",
-#         "a meeting",
-#         "schedule the the",
-#         "the is ready",
-#         "the was done yesterday",
-#         "meeting the the",
-#         "the the the",
-#         "a a a",
-#         "the meeting the",
-#         "the are important",
-#         "the will happen tomorrow",
-#     ]
-    
-#     for i, raw_stt in enumerate(test_cases, 1):
-#         cleaned = preprocess_before_llm(raw_stt)
-        
-#         print(f"Example {i}:")
-#         print(f"  INPUT:  {raw_stt}")
-#         print(f"  OUTPUT: {cleaned}")
-#         print()
-    
-#     print("=" * 100)
-#     print("STRESS TEST - LONG UTTERANCE WITH MULTIPLE ISSUES")
-#     print("=" * 100)
-#     print()
-    
-#     long_utterance = (
-#         "um so like basically what what i wanted to to say is that uh the the system "
-#         "performance has has been really really good lately you know and and we we "
-#         "should probably uh keep monitoring it it closely but but overall i i think "
-#         "the the team has done done a a great job you know i mean considering all all "
-#         "the the challenges we we faced um yeah the the"
-#     )
-    
-#     cleaned_long = preprocess_before_llm(long_utterance)
-    
-#     print(f"INPUT:\n{long_utterance}")
-#     print()
-#     print(f"OUTPUT:\n{cleaned_long}")
-#     print()
-    
-#     print("=" * 100)

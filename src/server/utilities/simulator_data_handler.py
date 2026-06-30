@@ -2,11 +2,22 @@ import os
 import uuid
 import json
 import logging
+import re
 from server.models.schemas import InterviewSetupRequest,UserInfo,OrganizationInfo
 from server.helpers import get_config
 
 settings = get_config()
 logger = logging.getLogger(__name__)
+
+# Regex for valid UUID v4 format
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+
+def _validate_user_id(user_id: str) -> str:
+    """Validate that user_id is a proper UUID to prevent path traversal."""
+    if not user_id or not _UUID_RE.match(user_id.strip()):
+        raise ValueError(f"Invalid user_id format: {user_id!r}")
+    return user_id.strip()
 
 
 def _normalize_name(name: str) -> str:
@@ -18,6 +29,7 @@ def _generate_user_id() -> str:
 
 
 def _get_user_dir(user_id: str) -> str:
+    _validate_user_id(user_id)
     return os.path.join(settings.SIMULATOR_STORAGE_PATH, user_id)
 
 

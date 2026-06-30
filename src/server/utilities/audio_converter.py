@@ -6,19 +6,10 @@ and removes the original file.
 
 import os
 import subprocess
-from pathlib import Path
-import os
-import threading
-import time
-import pyaudio
-import wave
-import tempfile
-import librosa
-import numpy as np
-from datetime import datetime
 import logging
-import soundfile as sf
-# import soundcard as sc
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -58,7 +49,7 @@ def convert_to_wav(input_path: str) -> str:
     ext = input_path.suffix.lower()
 
     if ext == ".wav":
-        print(f"[INFO] File is already .wav — no conversion needed: {input_path}")
+        logger.info("File is already .wav — no conversion needed: %s", input_path)
         return str(input_path)
 
     if ext not in SUPPORTED_EXTENSIONS:
@@ -72,7 +63,7 @@ def convert_to_wav(input_path: str) -> str:
 
     # Guard: avoid overwriting an existing .wav that is NOT the source file
     if output_path.exists():
-        print(f"[WARNING] Output file already exists and will be overwritten: {output_path}")
+        logger.warning("Output file already exists and will be overwritten: %s", output_path)
 
     # ── Convert with ffmpeg ──────────────────────────────────────────────────
     cmd = [
@@ -86,11 +77,17 @@ def convert_to_wav(input_path: str) -> str:
         str(output_path),
     ]
 
-    result = subprocess.run(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"ffmpeg conversion timed out after 120 seconds for '{input_path}'"
+        )
 
     if result.returncode != 0:
         error_msg = result.stderr.decode("utf-8", errors="replace")
@@ -100,8 +97,8 @@ def convert_to_wav(input_path: str) -> str:
 
     # ── Remove original ──────────────────────────────────────────────────────
     input_path.unlink()
-    print(f"[INFO] Converted & replaced: '{input_path.name}' → '{output_path.name}'")
-    print(f"[INFO] Saved at: {output_path}")
+    logger.info("Converted & replaced: '%s' → '%s'", input_path.name, output_path.name)
+    logger.info("Saved at: %s", output_path)
 
     return str(output_path)
 

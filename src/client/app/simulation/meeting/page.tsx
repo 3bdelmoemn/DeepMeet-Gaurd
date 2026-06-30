@@ -25,28 +25,47 @@ interface Message {
   conf?: number
 }
 
-// ─── 3D Avatar: Blue Team (Interviewer) ───────────────────────────────────────
+interface ConversationTurn {
+  turn: number
+  question: string
+  answer: string
+  timestamp: number
+  tokens_sent: number
+  tokens_recv: number
+}
+
+// ─── 3D Avatar: Blue Team ─────────────────────────────────────────────────────
 function BlueAvatar({ isSpeaking }: { isSpeaking: boolean }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.Mesh>(null)
+  const glowRef = useRef<THREE.Mesh>(null)
 
   useFrame((state) => {
     if (!meshRef.current || !ringRef.current) return
     meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.4) * 0.25
-    const pulse = isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 8) * 0.06 : 1
+    const pulse = isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 8) * 0.08 : 1
     meshRef.current.scale.setScalar(pulse)
     ringRef.current.rotation.z = state.clock.elapsedTime * 0.5
     ringRef.current.rotation.x = state.clock.elapsedTime * 0.3
+    if (glowRef.current) {
+      glowRef.current.scale.setScalar(
+        isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 6) * 0.2 : 1
+      )
+    }
   })
 
   return (
     <group>
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[1.4, 32, 32]} />
+        <meshBasicMaterial color="#6366f1" transparent opacity={isSpeaking ? 0.15 : 0.05} />
+      </mesh>
       <mesh ref={meshRef}>
         <sphereGeometry args={[1.1, 64, 64]} />
         <MeshDistortMaterial
           color="#6366f1"
           emissive="#4338ca"
-          emissiveIntensity={0.4}
+          emissiveIntensity={isSpeaking ? 0.8 : 0.4}
           metalness={0.6}
           roughness={0.1}
           distort={isSpeaking ? 0.35 : 0.12}
@@ -55,18 +74,35 @@ function BlueAvatar({ isSpeaking }: { isSpeaking: boolean }) {
       </mesh>
       <mesh ref={ringRef} rotation={[Math.PI / 3, 0, 0]}>
         <torusGeometry args={[1.7, 0.04, 16, 100]} />
-        <meshStandardMaterial color="#a5b4fc" emissive="#818cf8" emissiveIntensity={0.8} />
+        <meshStandardMaterial
+          color="#a5b4fc"
+          emissive="#818cf8"
+          emissiveIntensity={isSpeaking ? 1.5 : 0.8}
+        />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[2.1, 0.02, 8, 64]} />
-        <meshStandardMaterial color="#c7d2fe" emissive="#6366f1" emissiveIntensity={0.5} transparent opacity={0.5} />
+        <meshStandardMaterial
+          color="#c7d2fe"
+          emissive="#6366f1"
+          emissiveIntensity={isSpeaking ? 1 : 0.5}
+          transparent
+          opacity={isSpeaking ? 0.8 : 0.5}
+        />
       </mesh>
       {Array.from({ length: 12 }).map((_, i) => {
         const angle = (i / 12) * Math.PI * 2
         return (
-          <mesh key={i} position={[Math.cos(angle) * 1.9, Math.sin(angle * 0.7) * 0.5, Math.sin(angle) * 1.9]}>
+          <mesh
+            key={i}
+            position={[Math.cos(angle) * 1.9, Math.sin(angle * 0.7) * 0.5, Math.sin(angle) * 1.9]}
+          >
             <sphereGeometry args={[0.04, 8, 8]} />
-            <meshStandardMaterial color="#818cf8" emissive="#6366f1" emissiveIntensity={1} />
+            <meshStandardMaterial
+              color="#818cf8"
+              emissive="#6366f1"
+              emissiveIntensity={isSpeaking ? 2 : 1}
+            />
           </mesh>
         )
       })}
@@ -74,29 +110,41 @@ function BlueAvatar({ isSpeaking }: { isSpeaking: boolean }) {
   )
 }
 
-// ─── 3D Avatar: Red Team (AI Attacker) ────────────────────────────────────────
+// ─── 3D Avatar: Red Team ──────────────────────────────────────────────────────
 function RedAvatar({ isSpeaking, glitchLevel }: { isSpeaking: boolean; glitchLevel: number }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const crackRef = useRef<THREE.Mesh>(null)
+  const glowRef = useRef<THREE.Mesh>(null)
 
   useFrame((state) => {
     if (!meshRef.current || !crackRef.current) return
-    meshRef.current.rotation.y = state.clock.elapsedTime * 0.6 + Math.sin(state.clock.elapsedTime * 12) * 0.05
-    const glitch = glitchLevel > 0 ? Math.sin(state.clock.elapsedTime * 20) * 0.08 * glitchLevel : 0
-    meshRef.current.position.x = glitch
-    const pulse = isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 10) * 0.08 : 1
-    meshRef.current.scale.setScalar(pulse)
+    meshRef.current.rotation.y =
+      state.clock.elapsedTime * 0.6 + Math.sin(state.clock.elapsedTime * 12) * 0.05
+    meshRef.current.position.x =
+      glitchLevel > 0 ? Math.sin(state.clock.elapsedTime * 20) * 0.08 * glitchLevel : 0
+    meshRef.current.scale.setScalar(
+      isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 10) * 0.08 : 1
+    )
     crackRef.current.rotation.z = state.clock.elapsedTime * -0.8
+    if (glowRef.current) {
+      glowRef.current.scale.setScalar(
+        isSpeaking ? 1 + Math.sin(state.clock.elapsedTime * 8) * 0.2 : 1
+      )
+    }
   })
 
   return (
     <group>
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[1.4, 32, 32]} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={isSpeaking ? 0.15 : 0.05} />
+      </mesh>
       <mesh ref={meshRef}>
         <sphereGeometry args={[1.1, 64, 64]} />
         <MeshDistortMaterial
           color="#ef4444"
           emissive="#991b1b"
-          emissiveIntensity={0.5}
+          emissiveIntensity={isSpeaking ? 0.8 : 0.5}
           metalness={0.3}
           roughness={0.2}
           distort={isSpeaking ? 0.5 : 0.2}
@@ -105,19 +153,29 @@ function RedAvatar({ isSpeaking, glitchLevel }: { isSpeaking: boolean; glitchLev
       </mesh>
       <mesh ref={crackRef} rotation={[Math.PI / 4, 0, 0]}>
         <torusGeometry args={[1.7, 0.03, 8, 40, Math.PI * 1.6]} />
-        <meshStandardMaterial color="#fca5a5" emissive="#ef4444" emissiveIntensity={0.9} />
+        <meshStandardMaterial
+          color="#fca5a5"
+          emissive="#ef4444"
+          emissiveIntensity={isSpeaking ? 1.5 : 0.9}
+        />
       </mesh>
       {[1.5, 1.9, 2.3].map((r, i) => (
         <mesh key={i} rotation={[Math.PI / 2 + i * 0.4, 0, i * 0.8]}>
           <torusGeometry args={[r, 0.015, 4, 32]} />
-          <meshStandardMaterial color="#f87171" emissive="#dc2626" emissiveIntensity={0.6} transparent opacity={0.4} />
+          <meshStandardMaterial
+            color="#f87171"
+            emissive="#dc2626"
+            emissiveIntensity={isSpeaking ? 1 : 0.6}
+            transparent
+            opacity={isSpeaking ? 0.6 : 0.4}
+          />
         </mesh>
       ))}
     </group>
   )
 }
 
-// ─── Finished 3D Screen ────────────────────────────────────────────────────────
+// ─── Finished 3D Screen ───────────────────────────────────────────────────────
 function Finished3DScreen() {
   const groupRef = useRef<THREE.Group>(null)
   const sphereRef = useRef<THREE.Mesh>(null)
@@ -128,8 +186,7 @@ function Finished3DScreen() {
       groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 1) * 0.3
     }
     if (sphereRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.06
-      sphereRef.current.scale.setScalar(scale)
+      sphereRef.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 2) * 0.06)
     }
   })
 
@@ -163,17 +220,13 @@ function Finished3DScreen() {
   )
 }
 
-// ─── Message Bubble ────────────────────────────────────────────────────────────
-interface BubbleProps {
-  text: string
-  side: "blue" | "red"
-  index: number
-  confidence?: number
-}
-
-function MessageBubble({ text, side, index, confidence }: BubbleProps) {
+// ─── Message Bubble ───────────────────────────────────────────────────────────
+function MessageBubble({
+  text, side, index, confidence,
+}: {
+  text: string; side: "blue" | "red"; index: number; confidence?: number
+}) {
   const isBlue = side === "blue"
-
   if (!text) return null
 
   return (
@@ -185,15 +238,17 @@ function MessageBubble({ text, side, index, confidence }: BubbleProps) {
         "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-lg",
         isBlue
           ? "bg-gradient-to-br from-indigo-500 to-violet-500"
-          : "bg-gradient-to-br from-red-500 to-orange-500"
+          : "bg-gradient-to-br from-red-500 to-orange-500",
       )}>
-        {isBlue ? <Shield className="h-4 w-4 text-white" /> : <AlertTriangle className="h-4 w-4 text-white" />}
+        {isBlue
+          ? <Shield className="h-4 w-4 text-white" />
+          : <AlertTriangle className="h-4 w-4 text-white" />}
       </div>
 
-      <div className={cn("flex-1 max-w-[85%]", isBlue ? "" : "flex flex-col items-end")}>
+      <div className={cn("flex-1 max-w-[85%]", !isBlue && "flex flex-col items-end")}>
         <span className={cn(
           "text-[10px] font-bold uppercase tracking-widest mb-1",
-          isBlue ? "text-indigo-500" : "text-red-500"
+          isBlue ? "text-indigo-500" : "text-red-500",
         )}>
           {isBlue
             ? "🔵 BLUE TEAM (Interviewer - Real Human)"
@@ -203,7 +258,7 @@ function MessageBubble({ text, side, index, confidence }: BubbleProps) {
           "rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm relative overflow-hidden",
           isBlue
             ? "bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-tl-sm"
-            : "bg-red-50 border border-red-200 text-red-900 rounded-tr-sm"
+            : "bg-red-50 border border-red-200 text-red-900 rounded-tr-sm",
         )}>
           {!isBlue && (
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-red-200/20 to-transparent animate-gradient-shift pointer-events-none" />
@@ -221,189 +276,256 @@ function MessageBubble({ text, side, index, confidence }: BubbleProps) {
   )
 }
 
-// ─── Avatar Components (مستقرة) ────────────────────────────────────────────────
-const BlueAvatarContainer = ({ isActive }: { isActive: boolean }) => {
-  return (
-    <Canvas camera={{ position: [0, 0, 4.5], fov: 50 }}>
-      <Suspense fallback={null}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[3, 3, 3]} intensity={1.2} />
-        <pointLight position={[-3, 2, 2]} intensity={0.8} color="#6366f1" />
-        <Environment preset="studio" />
-        <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.4}>
-          <BlueAvatar isSpeaking={isActive} />
-        </Float>
-      </Suspense>
-    </Canvas>
-  )
-}
+// ─── Avatar Containers ────────────────────────────────────────────────────────
+const BlueAvatarContainer = ({ isActive }: { isActive: boolean }) => (
+  <Canvas camera={{ position: [0, 0, 4.5], fov: 50 }}>
+    <Suspense fallback={null}>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[3, 3, 3]} intensity={1.2} />
+      <pointLight position={[-3, 2, 2]} intensity={0.8} color="#6366f1" />
+      <Environment preset="studio" />
+      <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.4}>
+        <BlueAvatar isSpeaking={isActive} />
+      </Float>
+    </Suspense>
+  </Canvas>
+)
 
-const RedAvatarContainer = ({ isActive, glitchLevel }: { isActive: boolean; glitchLevel: number }) => {
-  return (
-    <Canvas camera={{ position: [0, 0, 4.5], fov: 50 }}>
-      <Suspense fallback={null}>
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[3, 3, 3]} intensity={0.8} />
-        <pointLight position={[-3, 2, 2]} intensity={1} color="#ef4444" />
-        <Environment preset="dawn" />
-        <Float speed={2.5} rotationIntensity={0.4} floatIntensity={0.6}>
-          <RedAvatar isSpeaking={isActive} glitchLevel={glitchLevel} />
-        </Float>
-      </Suspense>
-    </Canvas>
-  )
-}
+const RedAvatarContainer = ({
+  isActive, glitchLevel,
+}: { isActive: boolean; glitchLevel: number }) => (
+  <Canvas camera={{ position: [0, 0, 4.5], fov: 50 }}>
+    <Suspense fallback={null}>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[3, 3, 3]} intensity={0.8} />
+      <pointLight position={[-3, 2, 2]} intensity={1} color="#ef4444" />
+      <Environment preset="dawn" />
+      <Float speed={2.5} rotationIntensity={0.4} floatIntensity={0.6}>
+        <RedAvatar isSpeaking={isActive} glitchLevel={glitchLevel} />
+      </Float>
+    </Suspense>
+  </Canvas>
+)
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MeetingPage() {
   const [elapsed, setElapsed] = useState(0)
-  const [blueActive, setBlueActive] = useState(false)  // Blue: listening OR speaking
-  const [redActive, setRedActive] = useState(false)    // Red: AI speaking only
+  const [blueActive, setBlueActive] = useState(false)
+  const [redActive, setRedActive] = useState(false)
   const [glitchLevel, setGlitchLevel] = useState(0)
   const [messages, setMessages] = useState<Message[]>([])
   const [isFinished, setIsFinished] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [simStarted, setSimStarted] = useState(false)
+  const [backendSpeaker, setBackendSpeaker] = useState<string | null>(null)
+  const [backendState, setBackendState] = useState("IDLE")
+  const seenTurnsRef = useRef<Set<number>>(new Set())
   const transcriptRef = useRef<HTMLDivElement>(null)
-  
-  // Timeout refs للتحكم
   const blueTimerRef = useRef<NodeJS.Timeout | null>(null)
   const redTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // تنظيف الـ timeouts
-  const clearBlueTimer = () => {
-    if (blueTimerRef.current) {
-      clearTimeout(blueTimerRef.current)
-      blueTimerRef.current = null
-    }
-  }
+  const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-  const clearRedTimer = () => {
-    if (redTimerRef.current) {
-      clearTimeout(redTimerRef.current)
-      redTimerRef.current = null
+  // ─── Get userId ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const id = localStorage.getItem("deepmeet-user-id")
+    console.log("🔍 Retrieved user_id from localStorage:", id)
+    setUserId(id)
+    if (!id) {
+      console.warn("⚠️ No user_id found in localStorage")
     }
-  }
-
-  // تفعيل Blue Avatar (يتحرك لما بيسمع أو بيتكلم)
-  const activateBlue = useCallback((duration: number = 2000) => {
-    clearBlueTimer()
-    setBlueActive(true)
-    blueTimerRef.current = setTimeout(() => {
-      setBlueActive(false)
-    }, duration)
   }, [])
 
-  // تفعيل Red Avatar (يتحرك لما الـ AI بيتكلم)
-  const activateRed = useCallback((duration: number = 3000) => {
-    clearRedTimer()
-    setRedActive(true)
-    setGlitchLevel(0.5)
-    redTimerRef.current = setTimeout(() => {
-      setRedActive(false)
-      setGlitchLevel(0)
-    }, duration)
-  }, [])
-
-  // Timer
+  // ─── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isFinished) return
     const t = setInterval(() => setElapsed((p) => p + 1), 1000)
     return () => clearInterval(t)
   }, [isFinished])
 
-  // Auto-scroll transcript
+  // ─── Auto-scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
-    if (transcriptRef.current) {
+    if (transcriptRef.current)
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
-    }
   }, [messages])
 
-  // Poll for messages from backend
+  // ─── Avatar helpers ───────────────────────────────────────────────────────
+  const clearBlueTimer = () => {
+    if (blueTimerRef.current) { clearTimeout(blueTimerRef.current); blueTimerRef.current = null }
+  }
+  const clearRedTimer = () => {
+    if (redTimerRef.current) { clearTimeout(redTimerRef.current); redTimerRef.current = null }
+  }
+
+  const activateBlue = useCallback((duration = 2500) => {
+    clearBlueTimer()
+    setBlueActive(true)
+    blueTimerRef.current = setTimeout(() => setBlueActive(false), duration)
+  }, [])
+
+  const activateRed = useCallback((duration = 4000) => {
+    clearRedTimer()
+    setRedActive(true)
+    setGlitchLevel(0.5)
+    redTimerRef.current = setTimeout(() => { setRedActive(false); setGlitchLevel(0) }, duration)
+  }, [])
+
+  // ─── STEP 1: Stop detector and start simulation ──────────────────────────
   useEffect(() => {
-    const interval = setInterval(async () => {
+    if (!userId || simStarted) return
+
+    const boot = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/get-latest")
-        const data = await response.json()
-
-        // 🔵 Blue Team (المستخدم بيتكلم) - يتحرك الأزرق
-        if (data.interviewer_text && data.interviewer_text.length > 3) {
-          setMessages((prev) => [...prev, { type: "blue", text: data.interviewer_text }])
-          activateBlue(2500)  // يتحرك 2.5 ثانية
-          // الأحمر يوقف حركته
-          clearRedTimer()
-          setRedActive(false)
-          setGlitchLevel(0)
-        }
-
-        // 🔴 Red Team (AI بيرد) - يتحرك الأحمر
-        if (data.ai_response && data.ai_response.length > 0) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              type: "red",
-              text: data.ai_response,
-              conf: Math.floor(Math.random() * 50) + 50,
-            },
-          ])
-          activateRed(4000)  // يتحرك 4 ثانية (بينما AI بيتكلم)
-          // الأزرق يوقف حركته
-          clearBlueTimer()
-          setBlueActive(false)
-        }
-      } catch (error) {
-        console.error("Polling error:", error)
-      }
-    }, 1500)
-
-    return () => {
-      clearInterval(interval)
-      clearBlueTimer()
-      clearRedTimer()
-    }
-  }, [activateBlue, activateRed])
-
-  // Health check to see if backend is listening
-  useEffect(() => {
-    const checkListening = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/api/health")
-        const data = await response.json()
-        setIsListening(data.listening_active)
+        console.log("🚀 Stopping detector and starting simulation for user:", userId)
         
-        // لو السيرفر بيسمع وخلال فترة صمت، خلي الأزرق نشط
-        if (data.listening_active && !blueActive && !redActive && messages.length > 0) {
-          // مؤشر استماع خفيف
-          setBlueActive(true)
-          setTimeout(() => {
-            if (!redActive && !blueActive) {
-              setBlueActive(false)
-            }
-          }, 1000)
+        // Stop detector
+        await fetch(`${API}/deepmeet/detector/end`, { method: "POST" })
+        console.log("✅ Detector stop request sent")
+      } catch {
+        // silent — 409 if no detector running
+      }
+
+      try {
+        const res = await fetch(
+          `${API}/deepmeet/simulator/communication/start?user_id=${userId}`,
+          { method: "POST" },
+        )
+        if (res.ok) {
+          console.log("✅ Simulation started successfully")
+          setSimStarted(true)
+          setIsListening(true)
+        } else if (res.status === 409) {
+          console.log("✅ Simulation already running")
+          setSimStarted(true)
+          setIsListening(true)
+        } else {
+          const errorText = await res.text()
+          console.warn("⚠️ Start simulation warning:", res.status, errorText)
+        }
+      } catch (err) {
+        console.error("❌ Start simulation error:", err)
+      }
+    }
+
+    boot()
+  }, [userId, simStarted, API])
+
+  // ─── STEP 2: Poll for messages from backend ──────────────────────────────
+// ─── STEP 2: Poll for messages from backend ──────────────────────────
+useEffect(() => {
+  if (!userId) return
+
+  const pollConversation = async () => {
+    try {
+      // Live state — خفيف، كل 500ms مقبول
+      const liveRes = await fetch(`${API}/deepmeet/simulator/communication/live`)
+      if (liveRes.ok) {
+        const liveData = await liveRes.json()
+        setBackendSpeaker(liveData.speaker)
+        setBackendState(liveData.state)
+
+        if (liveData.speaker === "interviewer") {
+          setBlueActive(true); setRedActive(false); setGlitchLevel(0)
+        } else if (liveData.speaker === "interviewee") {
+          setBlueActive(false); setRedActive(true); setGlitchLevel(0.5)
+        } else {
+          setBlueActive(false); setRedActive(false); setGlitchLevel(0)
+        }
+      }
+    } catch (err) {
+      console.error("Live poll error", err)
+    }
+  }
+
+  // ✅ Report poll منفصل وأبطأ — مش محتاج يتحدث كل 500ms
+  const pollReport = async () => {
+    try {
+      const reportRes = await fetch(
+        `${API}/deepmeet/simulator/communication/report?user_id=${userId}`,
+        { method: "POST" }
+      )
+      if (!reportRes.ok) return
+
+      const reportData = await reportRes.json()
+      const turns = reportData.report || []
+
+      turns.forEach((turn: ConversationTurn) => {
+        if (seenTurnsRef.current.has(turn.turn)) return
+        seenTurnsRef.current.add(turn.turn)
+
+        const newMessages: Message[] = []
+        if (turn.question?.trim()) {
+          newMessages.push({ type: "blue", text: turn.question.trim() })
+        }
+        if (turn.answer?.trim()) {
+          newMessages.push({
+            type: "red",
+            text: turn.answer.trim(),
+            conf: Math.floor(Math.random() * 50) + 50,
+          })
+        }
+        if (newMessages.length > 0) {
+          setMessages(prev => [...prev, ...newMessages])
+        }
+      })
+    } catch (err) {
+      console.error("Report poll error", err)
+    }
+  }
+
+  // ✅ Live: كل 500ms | Report: كل 2000ms
+  const liveInterval = setInterval(pollConversation, 500)
+  const reportInterval = setInterval(pollReport, 2000)
+
+  // شغّل مرة فوراً
+  pollConversation()
+  pollReport()
+
+  return () => {
+    clearInterval(liveInterval)
+    clearInterval(reportInterval)
+  }
+}, [userId, API])
+  // ─── Health check ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${API}/deepmeet/health`)
+        const data = await res.json()
+        
+        if (data.listening_active !== undefined) {
+          setIsListening(data.listening_active)
         }
       } catch {
         // silent fail
       }
     }
-    checkListening()
-    const interval = setInterval(checkListening, 3000)
+    check()
+    const interval = setInterval(check, 5000)
     return () => clearInterval(interval)
-  }, [blueActive, redActive, messages.length])
+  }, [API])
 
-  const formatTime = (s: number) =>
-    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
-
+  // ─── Stop simulation ───────────────────────────────────────────────────────
   const stopSimulation = async () => {
-    try {
-      await fetch("http://localhost:8000/api/cleanup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-    } catch (error) {
-      console.error("Cleanup error:", error)
+    if (userId) {
+      try {
+        await fetch(
+          `${API}/deepmeet/simulator/communication/end?user_id=${userId}`,
+          { method: "POST" },
+        )
+        console.log("✅ Simulation stopped")
+      } catch {
+        // silent
+      }
     }
     setIsFinished(true)
   }
 
+  const formatTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+
+  // ─── Finished Screen ───────────────────────────────────────────────────────
   if (isFinished) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex flex-col items-center justify-center relative overflow-hidden">
@@ -439,8 +561,10 @@ export default function MeetingPage() {
     )
   }
 
+  // ─── Main Render ───────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 pt-16">
+
       {/* Top Status Bar */}
       <div className="fixed top-16 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-b border-border/60 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
@@ -448,10 +572,24 @@ export default function MeetingPage() {
             <div className="flex items-center gap-2">
               <span className={cn(
                 "h-2.5 w-2.5 rounded-full",
-                isListening ? "bg-green-500 animate-pulse" : "bg-red-500"
+                isListening ? "bg-green-500 animate-pulse" : "bg-amber-500 animate-pulse",
               )} />
               <span className="text-sm font-bold text-foreground">
-                {isListening ? "LISTENING" : "AWAITING VOICE"}
+                {
+                  backendState === "LISTENING"
+                   ? "LISTENING"
+
+                  : backendState === "PROCESSING"
+                  ? "THINKING"
+
+                  : backendState === "SPEAKING"
+                  ? "SPEAKING"
+
+                  : backendState === "COOLDOWN"
+                  ? "COOLDOWN"
+
+                  : "STARTING..."
+                }
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -482,13 +620,15 @@ export default function MeetingPage() {
         </div>
       </div>
 
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 pt-16 pb-12">
         <div className="grid lg:grid-cols-[1fr_420px] gap-6 items-start">
-          {/* Left Column — Avatars */}
+
+          {/* Left — Avatars */}
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              
-              {/* 🔵 BLUE TEAM - يتحرك أثناء الاستماع أو الكلام */}
+
+              {/* 🔵 Blue Team */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-200">
                   <Shield className="h-4 w-4 text-indigo-600" />
@@ -498,21 +638,28 @@ export default function MeetingPage() {
                   </div>
                   <CheckCircle className="h-4 w-4 text-emerald-500 ml-auto" />
                 </div>
-                <div className="rounded-2xl overflow-hidden border border-indigo-100 shadow-lg shadow-indigo-100/60 bg-gradient-to-b from-indigo-50 to-white" style={{ height: 320 }}>
+                <div
+                  className="rounded-2xl overflow-hidden border border-indigo-100 shadow-lg shadow-indigo-100/60 bg-gradient-to-b from-indigo-50 to-white"
+                  style={{ height: 320 }}
+                >
                   <BlueAvatarContainer isActive={blueActive} />
                 </div>
                 <div className={cn(
                   "flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all duration-300",
                   blueActive
                     ? "bg-indigo-100 border border-indigo-300 text-indigo-700"
-                    : "bg-muted/50 border border-border/40 text-muted-foreground"
+                    : "bg-muted/50 border border-border/40 text-muted-foreground",
                 )}>
                   <Mic className={cn("h-3.5 w-3.5", blueActive && "animate-pulse")} />
-                  {blueActive ? "Active..." : "Idle"}
+                  {
+                   backendSpeaker === "interviewer"
+                    ? "Speaking..."
+                    : "Idle"
+                    }
                 </div>
               </div>
 
-              {/* 🔴 RED TEAM - يتحرك فقط لما الـ AI بيتكلم */}
+              {/* 🔴 Red Team */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200">
                   <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -521,7 +668,10 @@ export default function MeetingPage() {
                     <p className="text-[10px] text-red-500">Voice Clone Attacker</p>
                   </div>
                 </div>
-                <div className="rounded-2xl overflow-hidden border-2 border-red-200 shadow-lg shadow-red-100/60 bg-gradient-to-b from-red-50 to-white relative" style={{ height: 320 }}>
+                <div
+                  className="rounded-2xl overflow-hidden border-2 border-red-200 shadow-lg shadow-red-100/60 bg-gradient-to-b from-red-50 to-white relative"
+                  style={{ height: 320 }}
+                >
                   <RedAvatarContainer isActive={redActive} glitchLevel={glitchLevel} />
                   {glitchLevel > 0.5 && (
                     <div className="absolute inset-0 pointer-events-none rounded-2xl overflow-hidden">
@@ -539,16 +689,20 @@ export default function MeetingPage() {
                   "flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold transition-all duration-300",
                   redActive
                     ? "bg-red-100 border border-red-300 text-red-700"
-                    : "bg-muted/50 border border-border/40 text-muted-foreground"
+                    : "bg-muted/50 border border-border/40 text-muted-foreground",
                 )}>
                   <Zap className={cn("h-3.5 w-3.5", redActive && "animate-pulse")} />
-                  {redActive ? "Speaking with Cloned Voice" : "Idle"}
+                  {
+ backendSpeaker === "interviewee"
+ ? "Speaking with Cloned Voice"
+ : "Idle"
+}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column — Live Transcript */}
+          {/* Right — Live Transcript */}
           <div className="flex flex-col gap-3 lg:sticky lg:top-36">
             <div className="glass-card overflow-hidden">
               <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-50 to-red-50/30">
@@ -557,10 +711,10 @@ export default function MeetingPage() {
                 <div className="ml-auto flex items-center gap-1.5">
                   <span className={cn(
                     "h-2 w-2 rounded-full",
-                    isListening ? "bg-green-500 animate-pulse" : "bg-red-500"
+                    simStarted ? "bg-green-500 animate-pulse" : "bg-amber-500 animate-pulse",
                   )} />
                   <span className="text-xs text-muted-foreground font-medium">
-                    {isListening ? "Listening" : "Waiting"}
+                    {simStarted ? "Live" : "Starting..."}
                   </span>
                 </div>
               </div>
@@ -568,9 +722,9 @@ export default function MeetingPage() {
               <div className="p-4 bg-yellow-50/50 border-b border-yellow-100 text-center">
                 <Mic className="h-4 w-4 text-yellow-600 inline mr-2" />
                 <span className="text-xs text-yellow-700">
-                  {isListening
+                  {simStarted
                     ? "🎤 Speak into your microphone — the AI will respond automatically"
-                    : "⏳ Waiting for voice recognition to start..."}
+                    : "⏳ Starting simulation, please wait..."}
                 </span>
               </div>
 
@@ -585,16 +739,16 @@ export default function MeetingPage() {
                       <Mic className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {isListening
+                      {simStarted
                         ? "Say something to start the conversation..."
-                        : "Waiting for voice recognition..."}
+                        : "Initializing simulation..."}
                     </p>
                   </div>
                 )}
 
                 {messages.map((msg, i) => (
                   <MessageBubble
-                    key={i}
+                    key={`${msg.type}-${i}`}
                     text={msg.text}
                     side={msg.type}
                     index={i}
@@ -602,7 +756,7 @@ export default function MeetingPage() {
                   />
                 ))}
 
-                {isListening && messages.length > 0 && !redActive && (
+                {simStarted && messages.length > 0 && !redActive && (
                   <div className="flex items-center justify-center gap-2 py-2">
                     <div className="flex gap-1">
                       {[0, 1, 2].map((i) => (

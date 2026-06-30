@@ -74,11 +74,11 @@ class BaseLLMConfigurationInterface(ABC):
     
     def get_config(self) -> Dict[str, Any]:
         """Get current configuration"""
-        return self.parms
-    
+        return self.params
+
     def update_config(self, new_config: Dict[str, Any]):
         """Update configuration dynamically"""
-        self.parms.update(new_config)
+        self.params.update(new_config)
     
     
     

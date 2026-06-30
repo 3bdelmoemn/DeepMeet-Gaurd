@@ -14,8 +14,8 @@ from server.helpers import get_config
 settings = get_config()
 logger = logging.getLogger(__name__)
 
-SILENCE_THRESHOLD = 0.01   # RMS أقل من كده = صمت
-SILENCE_DURATION  = 1.5    # ثواني صمت متتالية = الصوت وقف
+SILENCE_THRESHOLD = 0.01   # RMS below this = silence
+SILENCE_DURATION  = 1.5    # Consecutive seconds of silence = audio stopped
 
 
 # ============================================================
@@ -113,7 +113,7 @@ def capture_speaker_audio(
 
             if _is_silent(mono):
                 silence_counter += 1
-                # صوت وقف → احفظ الـ sample الحالي
+                # Audio stopped → save the current sample
                 if silence_counter >= silence_chunks_needed and current_sample:
                     path = _save_sample(current_sample)
                     if path:
@@ -125,7 +125,7 @@ def capture_speaker_audio(
                 silence_counter = 0
                 current_sample.append(mono)
 
-        # احفظ أي صوت متبقي في نهاية الـ period
+        # Save any remaining audio at the end of the period
         if current_sample:
             path = _save_sample(current_sample)
             if path:
@@ -156,7 +156,7 @@ def run_period_detection(
 
     results = []
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
             executor.submit(detector.predict, path, return_layer_results=True): path
             for path in wav_files

@@ -1,25 +1,25 @@
-# F:\DeepMeet\DeepMeet-Guard\server\src\models\behave_live\voice_deepfake.py
-
 import numpy as np
 import librosa
 import joblib
 import os
+import logging
 from scipy import stats
 from scipy.spatial.distance import cosine, euclidean
 from scipy.signal import find_peaks
 import warnings
-warnings.filterwarnings('ignore')
 import matplotlib
 matplotlib.use('Agg')
 
+logger = logging.getLogger(__name__)
+
 # ============================================================
-# 1. Advanced Feature Extractor (كاملاً)
+# 1. Advanced Feature Extractor (Complete)
 # ============================================================
 
 class AdvancedFeatureExtractor:
     def __init__(self, sr=16000):
         self.sr = sr
-        self.MIN_DURATION_SEC = 3.0
+        self.MIN_DURATION_SEC = 2.0
 
     @staticmethod
     def _sigmoid(x, center, scale=1.0):
@@ -107,7 +107,7 @@ class AdvancedFeatureExtractor:
         
         duration = len(y) / sr
         if duration < self.MIN_DURATION_SEC:
-            print(f"Audio too short: {duration:.2f}s (min {self.MIN_DURATION_SEC}s)")
+            logger.warning("Audio too short: %.2fs (min %.2fs)", duration, self.MIN_DURATION_SEC)
             return None
         
         features = {}
@@ -120,7 +120,7 @@ class AdvancedFeatureExtractor:
             features['rms_entropy'] = stats.entropy(np.histogram(rms, bins=20)[0] + 1e-8)
             features['energy_skewness'] = stats.skew(rms)
             features['energy_kurtosis'] = stats.kurtosis(rms)
-        except:
+        except Exception:
             for k in ['rms_cv', 'rms_std', 'rms_entropy', 'energy_skewness', 'energy_kurtosis']:
                 features[k] = 0
 
@@ -157,7 +157,7 @@ class AdvancedFeatureExtractor:
                 for k in ['pitch_mean', 'pitch_std', 'pitch_cv', 'pitch_range', 'pitch_entropy',
                           'pitch_change_mean', 'pitch_change_std', 'jitter_local', 'jitter_rap', 'shimmer_local']:
                     features[k] = 0
-        except:
+        except Exception:
             for k in ['pitch_mean', 'pitch_std', 'pitch_cv', 'pitch_range', 'pitch_entropy',
                       'pitch_change_mean', 'pitch_change_std', 'jitter_local', 'jitter_rap', 'shimmer_local']:
                 features[k] = 0
@@ -186,7 +186,7 @@ class AdvancedFeatureExtractor:
             else:
                 for k in ['pause_duration_mean', 'pause_duration_std', 'pause_duration_cv']:
                     features[k] = 0
-        except:
+        except Exception:
             for k in ['silence_ratio', 'transition_rate', 'silence_count', 'pause_duration_mean', 'pause_duration_std', 'pause_duration_cv']:
                 features[k] = 0
 
@@ -215,7 +215,7 @@ class AdvancedFeatureExtractor:
             spectral_flatness = librosa.feature.spectral_flatness(y=y)[0]
             features['spectral_flatness_mean'] = np.mean(spectral_flatness)
             features['spectral_flatness_std'] = np.std(spectral_flatness)
-        except:
+        except Exception:
             pass
 
         # ========== 5. MFCC Features ==========
@@ -227,7 +227,7 @@ class AdvancedFeatureExtractor:
             mfcc_delta = librosa.feature.delta(mfccs)
             features['mfcc_delta_mean'] = np.mean(mfcc_delta)
             features['mfcc_delta_std'] = np.std(mfcc_delta)
-        except:
+        except Exception:
             pass
 
         # ========== 6. Phase Features ==========
@@ -238,7 +238,7 @@ class AdvancedFeatureExtractor:
             phase_diff = np.diff(phase, axis=1)
             features['phase_consistency'] = np.mean(np.abs(phase_diff))
             features['magnitude_flatness'] = np.exp(np.mean(np.log(magnitude + 1e-8))) / (np.mean(magnitude) + 1e-8)
-        except:
+        except Exception:
             features['phase_consistency'] = 0
             features['magnitude_flatness'] = 0
 
@@ -266,7 +266,7 @@ class AdvancedFeatureExtractor:
                 features['speech_segment_cv'] = np.std(speech_durations) / (np.mean(speech_durations) + 1e-8)
             else:
                 features['speech_segment_cv'] = 0
-        except:
+        except Exception:
             features['rate_variation_cv'] = 0
             features['speech_segment_cv'] = 0
 
@@ -302,22 +302,22 @@ class AdvancedFeatureExtractor:
             features['liveness_hnr_score'] = round(hnr, 4)
             features['liveness_score_total'] = round(float(liveness_score), 4)
         except Exception as e:
-            print(f"⚠️ Error in liveness features: {e}")
+            logger.warning("Error in liveness features: %s", e)
 
         return features
 
 
 # ============================================================
-# 2. VoiceDeepfakeDetector (كاملاً)
+# 2. VoiceDeepfakeDetector (Complete)
 # ============================================================
 
 class VoiceDeepfakeDetector:
     def __init__(self, model_dir=None):
         """
-        model_dir: المسار إلى المجلد اللي فيه الملفات (pkl, npy)
-        لو مش متحدد، هنستخدم المجلد الحالي
+        model_dir: Path to the directory containing model files (pkl, npy).
+        If not specified, uses the current directory.
         """
-        print("⚙️ Loading BehaveLive Deepfake Detector...")
+        logger.info("Loading BehaveLive Deepfake Detector...")
         
         if model_dir is None:
             model_dir = os.path.dirname(os.path.abspath(__file__))
@@ -334,7 +334,7 @@ class VoiceDeepfakeDetector:
         self.pool_matrix = np.load(pool_matrix_path)
         self.extractor = AdvancedFeatureExtractor()
         
-        print("✅ BehaveLive Detector Ready!")
+        logger.info("BehaveLive Detector Ready!")
 
     def _compute_distance_features(self, features_dict, top_k=10):
         """Compute cosine and euclidean distances against bonafide pool"""
@@ -354,12 +354,12 @@ class VoiceDeepfakeDetector:
 
         try:
             cos_dist = cosine(feature_vector_clean, pool_mean_clean)
-        except:
+        except Exception:
             cos_dist = 1.0
 
         try:
             euc_dist = euclidean(feature_vector_clean, pool_mean_clean)
-        except:
+        except Exception:
             euc_dist = 1000.0
 
         min_cos, min_euc, all_cos = 1.0, float('inf'), []
@@ -372,7 +372,7 @@ class VoiceDeepfakeDetector:
                 all_cos.append(c)
                 if c < min_cos: min_cos = c
                 if e < min_euc: min_euc = e
-            except:
+            except Exception:
                 continue
 
         k_avg = np.mean(sorted(all_cos)[:min(top_k, len(all_cos))]) if all_cos else 1.0
@@ -404,9 +404,9 @@ class VoiceDeepfakeDetector:
         X_new = np.array(feature_vector).reshape(1, -1)
         X_new_scaled = self.model_package['scaler'].transform(X_new)
 
-        # Add noise like in training
-        np.random.seed(42)
-        X_new_noisy = X_new_scaled + np.random.normal(0, 0.03, X_new_scaled.shape)
+        # Add noise matching training pipeline
+        rng = np.random.default_rng(42)
+        X_new_noisy = X_new_scaled + rng.normal(0, 0.03, X_new_scaled.shape)
 
         return X_new_noisy
 
@@ -418,13 +418,12 @@ class VoiceDeepfakeDetector:
         try:
             X_ready = self.preprocess(audio_path)
             prob = self.model_package['ensemble'].predict_proba(X_ready)[0, 1]
-            threshold = self.model_package['threshold']
+            threshold = 0.975
 
-            is_ai = int(prob >= threshold)
-
+            is_ai = prob >= threshold
             return {
                 'status': 'success',
-                'prediction': 'AI' if is_ai == 1 else 'HUMAN',
+                'prediction': 'AI' if is_ai else 'HUMAN',
                 'ai_probability': round(prob, 4),
                 'human_probability': round(1 - prob, 4),
                 'confidence': round(max(prob, 1 - prob), 4)

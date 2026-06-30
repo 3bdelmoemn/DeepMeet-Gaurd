@@ -194,7 +194,7 @@ export function ProjectsStrengthsStep({ data, updateData }: StepProps) {
   const addProject = () => {
     const projects = data.projects || []
     updateData({
-      projects: [...projects, { title: "", description: "", technologies: "" }]
+      projects: [...projects, { name: "", description: "", link: "" }]
     })
   }
 
@@ -251,11 +251,11 @@ export function ProjectsStrengthsStep({ data, updateData }: StepProps) {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Project Title</Label>
+                <Label>Project Name</Label>
                 <Input
                   placeholder="E-commerce Platform"
-                  value={project.title}
-                  onChange={(e) => updateProject(index, "title", e.target.value)}
+                  value={project.name}
+                  onChange={(e) => updateProject(index, "name", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -268,11 +268,11 @@ export function ProjectsStrengthsStep({ data, updateData }: StepProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Technologies Used</Label>
+                <Label>Project Link</Label>
                 <Input
-                  placeholder="React, Node.js, PostgreSQL"
-                  value={project.technologies}
-                  onChange={(e) => updateProject(index, "technologies", e.target.value)}
+                  placeholder="https://github.com/user/project"
+                  value={project.link || ""}
+                  onChange={(e) => updateProject(index, "link", e.target.value)}
                 />
               </div>
             </div>

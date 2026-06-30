@@ -6,12 +6,14 @@ import struct
 import tempfile
 import threading
 import wave
+import logging
 from functools import wraps
 from typing import Any
 import matplotlib
 matplotlib.use('Agg')
 import torch
 
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal helpers
@@ -19,17 +21,17 @@ import torch
 
 def _make_cached_predict(original_fn, loader_fn, *loader_args, **loader_kwargs):
     """
-    يحوّل دالة predict(y, sr, ...) إلى نسخة تحمّل الـ model مرة واحدة بس.
+    Wraps predict(y, sr, ...) to load the model only once.
 
-    الـ strategy:
-      - أول call → loader_fn() يبني الـ model ويحطه في _cached_model
-      - التاني call فصاعدًا → يستخدم نفس الـ model من الـ cache
-      - thread-safe بـ Lock
+    Strategy:
+      - First call → loader_fn() builds the model and stores it in _cached_model
+      - Subsequent calls → reuse the same model from cache
+      - Thread-safe via Lock
 
     Args:
-        original_fn : الدالة الأصلية في الـ run.py (predict)
-        loader_fn   : callable يرجع الـ model جاهز (eval + to(device))
-        *loader_args / **loader_kwargs : arguments للـ loader_fn
+        original_fn : The original predict function from run.py
+        loader_fn   : Callable that returns the model ready for inference (eval + to(device))
+        *loader_args / **loader_kwargs : Arguments for loader_fn
     """
     lock = threading.Lock()
     cache: dict[str, Any] = {}          # {"model": <loaded model>}
@@ -40,7 +42,7 @@ def _make_cached_predict(original_fn, loader_fn, *loader_args, **loader_kwargs):
             with lock:
                 if "model" not in cache:   # double-checked locking
                     cache["model"] = loader_fn(*loader_args, **loader_kwargs)
-        # نمرّر الـ cached model للـ original عن طريق kwarg خاص
+        # Pass the cached model to the original via a special kwarg
         return original_fn(*args, _cached_model=cache["model"], **kwargs)
 
     return cached
@@ -51,7 +53,7 @@ def _make_cached_predict(original_fn, loader_fn, *loader_args, **loader_kwargs):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _patch_spectra0():
-    """يعمل cache للـ Spectra0Model بدل ما يعيد from_pretrained() كل مرة."""
+    """Caches Spectra0Model instead of calling from_pretrained() every time."""
     import Jabberjay.Models.Spectra0.run as mod
     from Jabberjay.Models.Spectra0.model import Spectra0Model
 
@@ -91,7 +93,7 @@ def _patch_spectra0():
 
 
 def _patch_rawnet2():
-    """يعمل cache للـ RawNet2 model + weights بدل ما يعيد load_state_dict كل مرة."""
+    """Caches RawNet2 model + weights instead of calling load_state_dict every time."""
     import Jabberjay.Models.RawNet2.run as mod
     from Jabberjay.Models.RawNet2.model import RawNet
     from Jabberjay.Utilities.hugging_face import download_pretrained_model
@@ -141,7 +143,7 @@ def _patch_rawnet2():
 
 
 def _patch_vit(dataset_name: str, visualisation_name: str):
-    # MelSpectrogram في الـ enum بيتحول لـ Mel_Spectrogram في الـ HuggingFace repo name
+    # MelSpectrogram in the enum maps to Mel_Spectrogram in the HuggingFace repo name
     _VIS_HF_NAME = {
         "MelSpectrogram": "Mel_Spectrogram",
         "ConstantQ":      "ConstantQ",
@@ -200,8 +202,8 @@ class FakeAudioDetectionController:
     Usage
     -----
     ctrl = FakeAudioDetectionController()
-    ctrl.setup()                     # يحمّل كل الـ models مرة واحدة
-    result = ctrl.detect("x.wav")   # inference فوري بدون أي re-loading
+    ctrl.setup()                     # Loads all models once
+    result = ctrl.detect("x.wav")   # Instant inference with no re-loading
     """
 
     _instance  = None
@@ -230,7 +232,7 @@ class FakeAudioDetectionController:
     # ── internal helpers ─────────────────────────────────────────────────────
     @staticmethod
     def __create_dummy_wav() -> str:
-        """4 ثواني صمت عند 16 kHz — كافية لـ warm-up كل model."""
+        """4 seconds of silence at 16 kHz — sufficient for warm-up of each model."""
         tmp       = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         n_samples = 16_000 * 4
         with wave.open(tmp.name, "w") as f:
@@ -242,17 +244,17 @@ class FakeAudioDetectionController:
 
     def __apply_patches(self):
         """
-        Monkey-patch الـ Jabberjay run.py modules بـ cached versions.
-        بيتعمل مرة واحدة بس، والـ first detect() call بعد كده هي اللي
-        تحمّل الـ weights فعليًا في الـ cache.
+        Monkey-patch Jabberjay run.py modules with cached versions.
+        Done once; the first detect() call after this actually loads
+        the weights into the cache.
         """
-        print("[Controller] Applying model-cache patches…")
+        logger.info("Applying model-cache patches...")
 
         # Layer 1 — Spectra0
         if self.config.LAYER_ONE_NAME == "Spectra0":
             _patch_spectra0()
 
-        # Layer 2 — VIT  (يحتاج dataset + visualisation)
+        # Layer 2 — VIT (needs dataset + visualisation)
         if self.config.LAYER_TWO_NAME == "VIT":
             _patch_vit(
                 dataset_name      = self.config.VIT_DATASET_NAME,       # "ASVspoof5"
@@ -266,23 +268,23 @@ class FakeAudioDetectionController:
     # ── public API ───────────────────────────────────────────────────────────
     def setup(self) -> bool:
         """
-        Warm-up: يطبّق الـ patches ثم يشغّل inference وهمي لكل model
-        عشان الـ weights تتحمّل في الـ cache قبل ما أي request حقيقي يوصل.
-        كل الـ calls التانية بعد كده بتكون no-ops.
+        Warm-up: applies patches then runs dummy inference for each model
+        so weights are loaded into cache before any real request arrives.
+        All subsequent calls are no-ops.
         """
         if self._is_ready:
-            print("Models already loaded ✅")
+            logger.info("Models already loaded.")
             return True
 
-        # 1) طبّق الـ patches أولًا
+        # 1) Apply patches first
         self.__apply_patches()
 
-        # 2) warm-up بـ inference وهمي
+        # 2) Warm-up with dummy inference
         dummy_path = self.__create_dummy_wav()
         try:
             dummy_audio = self.__jj.load(dummy_path)
 
-            print("[Controller] Warming up models…")
+            logger.info("Warming up models...")
             r1 = self.__jj.detect(dummy_audio, model=self.config.LAYER_ONE_NAME)
             r2 = self.__jj.detect(
                 dummy_audio,
@@ -295,22 +297,22 @@ class FakeAudioDetectionController:
 
             if all([r1, r2, r3, r4]):
                 FakeAudioDetectionController._is_ready = True
-                print("Fake Audio Detection Models Loaded Successfully ✅")
+                logger.info("Fake Audio Detection Models Loaded Successfully.")
                 return True
 
         finally:
             os.remove(dummy_path)
 
-        print("Failed to load Fake Audio Detection Models ❌")
+        logger.error("Failed to load Fake Audio Detection Models.")
         return False
 
     def detect(self, audio_path: str) -> dict:
         """
-        يشغّل الـ 4 detection layers على الـ WAV المعطى.
-        الـ models محمّلة في الـ cache → inference فوري.
+        Runs all 4 detection layers on the given WAV file.
+        Models are loaded in cache → instant inference.
 
         Raises:
-            RuntimeError: لو setup() لم يُستدعَ أولًا.
+            RuntimeError: If setup() was not called first.
         """
         if not self._is_ready:
             raise RuntimeError("Models not loaded — call setup() first.")
