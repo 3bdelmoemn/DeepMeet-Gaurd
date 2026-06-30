@@ -562,9 +562,29 @@ class LLMController(BaseLLMConfigurationInterface):
 
         return response.content
 
+    _TRANSIENT_KEYWORDS = frozenset(["rate", "limit", "429", "503", "timeout", "timed out", "connection", "unavailable", "overloaded"])
+
+    def _is_transient(self, error: Exception) -> bool:
+        """Check if the error is transient and retryable."""
+        err = str(error).lower()
+        return any(kw in err for kw in self._TRANSIENT_KEYWORDS)
+
+    def _invoke_with_retry(self, messages: List[BaseMessage], max_retries: int = 3, base_delay: float = 1.0):
+        """Invoke LLM with exponential backoff for transient failures."""
+        for attempt in range(max_retries):
+            try:
+                return self.client.invoke(messages)
+            except Exception as e:
+                if not self._is_transient(e) or attempt == max_retries - 1:
+                    raise
+                delay = base_delay * (2 ** attempt)
+                logger.warning("Transient LLM error (attempt %d/%d), retrying in %.1fs: %s",
+                               attempt + 1, max_retries, delay, e)
+                time.sleep(delay)
+
     def _invoke_with_fallback(self, messages: List[BaseMessage], human_message: HumanMessage):
         try:
-            return self.client.invoke(messages)
+            return self._invoke_with_retry(messages)
         except Exception as e:
             err = str(e).lower()
             if not ("context" in err or "exceed" in err or "token" in err
@@ -577,12 +597,12 @@ class LLMController(BaseLLMConfigurationInterface):
             else:
                 messages = [self.SYSTEM_MESSAGE, human_message]
             try:
-                return self.client.invoke(messages)
+                return self._invoke_with_retry(messages)
             except Exception as e2:
                 logger.warning("Level 1 failed — Level 2 fallback: %s", e2)
                 if self._memory is not None:
                     self._memory.clear()
-                return self.client.invoke([self.SYSTEM_MESSAGE, human_message])
+                return self._invoke_with_retry([self.SYSTEM_MESSAGE, human_message])
 
     # ────────────────────────────────────────────
     # Async support

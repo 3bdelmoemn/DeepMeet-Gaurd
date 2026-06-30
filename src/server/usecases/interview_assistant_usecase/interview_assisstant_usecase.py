@@ -123,6 +123,10 @@ class InterViewAssistant:
         # Tracks whether stt.start() has been called and stream is live
         self._stt_active = False
 
+        # Live state — read by get_live_state() for the /live API
+        self.current_speaker = None
+        self.current_text = ""
+
     # ────────────────────────────────────────────────────────────
     # setup
     # ────────────────────────────────────────────────────────────
@@ -148,10 +152,10 @@ class InterViewAssistant:
         stt_ok = self.stt.setup(stt_model_path) if stt_model_path else self.stt.setup()
 
         if llm_ok and tts_ok and stt_ok:
-            print("✅ System ready.")
+            logger.info("✅ System ready.")
             return True
 
-        print("❌ Setup failed.")
+        logger.error("❌ Setup failed.")
         return False
 
     # ────────────────────────────────────────────────────────────
@@ -162,7 +166,7 @@ class InterViewAssistant:
         with open(ref_text_path, 'r', encoding='utf-8') as f:
             ref_text_content = f.read()
         self.tts.setup(ref_audio_path=ref_audio_path, ref_text_content=ref_text_content)
-        print("🔄 Reference updated.")
+        logger.info("🔄 Reference updated.")
 
     def impersonate(self, user_info: UserInfo, organization_info: OrganizationInfo):
         self.user_info         = user_info
@@ -203,8 +207,8 @@ class InterViewAssistant:
             "Answer directly without repeating the question.",
         ])
         self.llm.update_system_message(system_message)
-        print(f"🎭 Impersonating: {user_info.name}")
-        print(f"🏢 Target: {organization_info.company}")
+        logger.info("🎭 Impersonating: %s", user_info.name)
+        logger.info("🏢 Target: %s", organization_info.company)
 
     def get_report(self):
         return self.llm.get_report_as_dicts()
@@ -299,7 +303,11 @@ class InterViewAssistant:
           ✔ Transcript passes TranscriptValidator (length + dedup + noise)
           ✔ STT was stopped before LLM call (no echo possible)
         """
-        print("\n🎙️  Listening... (Ctrl+C to stop)")
+        self.llm.release_history()
+        self._validator.clear_cache()
+        self.current_speaker = None
+        self.current_text = ""
+        logger.info("🎙️  Listening...")
         self._start_stt()
         self._set_state(ConversationState.LISTENING)
 
@@ -320,7 +328,10 @@ class InterViewAssistant:
                         continue
 
                     processed = preprocess_before_llm(raw_text)
-                    print(f"\n  Interviewer : {processed}")
+                    self.current_speaker = "interviewer"
+                    self.current_text = processed
+
+                    logger.info("Interviewer: %s", processed)
 
                     # ── STOP STT before LLM call ──────────────────────
                     # From this point until _start_stt() is called again,
@@ -338,7 +349,10 @@ class InterViewAssistant:
                         self._set_state(ConversationState.LISTENING)
                         continue
 
-                    print(f"  Interviewee : {response}")
+                    self.current_speaker = "interviewee"
+                    self.current_text = response
+
+                    logger.info("Interviewee: %s", response)
 
                     # ── TTS (blocking) ────────────────────────────────
                     self._set_state(ConversationState.SPEAKING)
@@ -360,7 +374,7 @@ class InterViewAssistant:
                     time.sleep(self.LOOP_POLL_INTERVAL)
 
         except KeyboardInterrupt:
-            print("\n👋 Stopping...")
+            logger.info("👋 Stopping...")
 
         finally:
             self._set_state(ConversationState.STOPPING)
@@ -388,6 +402,18 @@ class InterViewAssistant:
             logger.debug("Cooldown: drained %d residual transcript(s)", leftover)
 
     # ────────────────────────────────────────────────────────────
+    # live state API
+    # ────────────────────────────────────────────────────────────
+
+    def get_live_state(self):
+        """Return current conversation state for the live API."""
+        return {
+            "speaker": self.current_speaker,
+            "text": self.current_text,
+            "state": self._get_state().name,
+        }
+
+    # ────────────────────────────────────────────────────────────
     # cleanup
     # ────────────────────────────────────────────────────────────
 
@@ -404,4 +430,6 @@ class InterViewAssistant:
             self.stt.cleanup()
         self.user_info         = None
         self.organization_info = None
-        print("🧹 Cleanup completed")
+        logger.info("🧹 Cleanup completed")
+
+

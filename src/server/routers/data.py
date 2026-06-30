@@ -15,6 +15,10 @@ logger = logging.getLogger('uvicorn.error')
 
 router = APIRouter(tags=["Simulator Data"], prefix="/deepmeet/simulator/data")
 
+# Upload limits (bytes)
+MAX_AUDIO_SIZE = 50 * 1024 * 1024   # 50 MB
+MAX_TEXT_SIZE  = 1 * 1024 * 1024    # 1 MB
+
 
 # ============================================================
 # 1. Upload user info + organization info
@@ -43,6 +47,13 @@ async def upload_references(
     audio: UploadFile = File(...),
     reference_text: UploadFile = File(...),
 ):
+    # Validate file sizes before processing
+    audio_bytes = await audio.read()
+    if len(audio_bytes) > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=413, detail=f"Audio file too large ({len(audio_bytes)} bytes). Max: {MAX_AUDIO_SIZE} bytes")
+    text_bytes = await reference_text.read()
+    if len(text_bytes) > MAX_TEXT_SIZE:
+        raise HTTPException(status_code=413, detail=f"Text file too large ({len(text_bytes)} bytes). Max: {MAX_TEXT_SIZE} bytes")
     # Get paths
     try:
         original_ext = os.path.splitext(audio.filename)[1] or ".wav"
@@ -54,7 +65,7 @@ async def upload_references(
     # Save audio
     try:
         async with aiofiles.open(audio_path, "wb") as f:
-            await f.write(await audio.read())
+            await f.write(audio_bytes)
         logger.info(f"✅ Audio saved: {audio_path}")
     except Exception as e:
         logger.error(f"❌ Failed to save audio: {e}")
@@ -74,7 +85,7 @@ async def upload_references(
     # Save reference text
     try:
         async with aiofiles.open(text_path, "wb") as f:
-            await f.write(await reference_text.read())
+            await f.write(text_bytes)
         logger.info(f"✅ Reference text saved: {text_path}")
     except Exception as e:
         logger.error(f"❌ Failed to save reference text: {e}")

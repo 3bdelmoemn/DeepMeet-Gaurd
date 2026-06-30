@@ -15,7 +15,7 @@ router = APIRouter(tags=["Simulator communication"], prefix="/deepmeet/simulator
 async def start_simulation(user_id: str, request: Request):
     simulator = request.app.state.simulator
 
-    # منع تشغيل أكتر من simulation في نفس الوقت
+    # Prevent running more than one simulation at the same time
     if hasattr(request.app.state, "simulation_thread") and \
        request.app.state.simulation_thread is not None and \
        request.app.state.simulation_thread.is_alive():
@@ -49,14 +49,16 @@ async def start_simulation(user_id: str, request: Request):
 async def end_simulation(user_id: str, request: Request):
     simulator = request.app.state.simulator
 
-    # تأكد إن في simulation شغالة
+    # Ensure a simulation is currently running
     thread: threading.Thread = getattr(request.app.state, "simulation_thread", None)
     if thread is None or not thread.is_alive():
         raise HTTPException(status_code=409, detail="No simulation is running")
 
     try:
         simulator.cleanup()
-        thread.join(timeout=5)
+        thread.join(timeout=10)
+        if thread.is_alive():
+            logger.warning("⚠️ Simulation thread did not stop within timeout — may be a zombie")
         request.app.state.simulation_thread = None
         request.app.state.simulation_user_id = None
         logger.info(f"✅ Simulation ended for user: {user_id}")
@@ -74,13 +76,15 @@ async def end_simulation(user_id: str, request: Request):
 # ============================================================
 # Report
 # ============================================================
+# ============================================================
+# Report
+# ============================================================
 @router.post("/report")
 async def report_simulation(user_id: str, request: Request):
     simulator = request.app.state.simulator
 
     try:
         report = simulator.get_report()
-        logger.info(f"✅ Report generated for user: {user_id}")
     except Exception as e:
         logger.error(f"❌ Report generation failed [{user_id}]: {e}")
         raise HTTPException(status_code=500, detail="Simulation report failed")
@@ -91,3 +95,12 @@ async def report_simulation(user_id: str, request: Request):
         "user_id": user_id,
         "report": report,
     })
+
+@router.get("/live")
+async def live_state(request: Request):
+
+    simulator = request.app.state.simulator
+
+    return JSONResponse(
+        simulator.get_live_state()
+    )

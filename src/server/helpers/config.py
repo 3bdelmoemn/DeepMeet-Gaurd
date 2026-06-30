@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Config(BaseSettings):
@@ -85,5 +86,6 @@ class Config(BaseSettings):
     LAYER_FOUR__MODELPATH:str=r"src\server\infrastructure\behaviour_liveness_detection_model"
     LAYER_FOUR_WEIGHT:float=1
 
+@lru_cache(maxsize=1)
 def get_config()->Config:
     return Config()

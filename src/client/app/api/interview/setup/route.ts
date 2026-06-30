@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
-    const response = await fetch(`${BACKEND_URL}/api/setup`, {
+    const response = await fetch(`${BACKEND_URL}/deepmeet/simulator/data/upload/info`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

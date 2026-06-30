@@ -1,3 +1,7 @@
+// ============================================================
+// FILE: src/client/app/simulation/page.tsx
+// ============================================================
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -23,7 +27,6 @@ export default function SimulationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<SimulationFormData>({})
 
-  // ✅ localStorage guard for SSR
   useEffect(() => {
     if (typeof window === "undefined") return
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -36,11 +39,10 @@ export default function SimulationPage() {
     }
   }, [])
 
-  // ✅ Save to localStorage with SSR guard
   useEffect(() => {
     if (typeof window === "undefined") return
     const toSave = { ...formData }
-    delete toSave.voiceFile // File objects can't be serialized
+    delete toSave.voiceFile
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
   }, [formData])
 
@@ -64,68 +66,151 @@ export default function SimulationPage() {
     setIsSubmitting(true)
 
     try {
+      // Transform experiences to array of strings
+      const experienceStrings = (formData.experiences || [])
+        .filter(exp => exp.company || exp.role)
+        .map(exp => `${exp.role} at ${exp.company} (${exp.duration || 'N/A'})`)
+
+      // Transform projects to array of strings
+      const projectStrings = (formData.projects || [])
+        .filter(proj => proj.name || proj.description)
+        .map(proj => `${proj.name}: ${proj.description || ''}`)
+
       const payload = {
         user_info: {
           name: formData.name || "",
-          current_role: formData.currentRole || "",
-          years_of_experience: formData.yearsExperience || 0,
+          role: formData.currentRole || "",
           skills: formData.skills || [],
-          experiences: formData.experiences || [],
-          projects: formData.projects || [],
+          experience: experienceStrings,
+          education: formData.education || "",
+          projects: projectStrings,
           strengths: formData.strengths || [],
-          areas_to_improve: formData.areasToImprove || [],
+          weaknesses: formData.areasToImprove || [],
         },
         organization_info: {
           company: formData.targetCompany?.name || "",
           industry: formData.targetCompany?.industry || "",
-          tech_stack: formData.targetCompany?.techStack || "",
+          tech_stack: formData.targetCompany?.techStack
+            ? [formData.targetCompany.techStack]
+            : [],
           role: formData.targetCompany?.role || "",
-          responsibilities: formData.targetCompany?.responsibilities || "",
+          responsibilities: formData.targetCompany?.responsibilities
+            ? [formData.targetCompany.responsibilities]
+            : [],
         },
       }
 
-      // 1. Upload voice first
-      if (formData.voiceFile) {
-        console.log("📤 Uploading voice file...")
-        const voiceFormData = new FormData()
-        voiceFormData.append("audio", formData.voiceFile)
-        voiceFormData.append("reference_text", formData.referenceText || "")
+      console.log("📤 Sending payload:", JSON.stringify(payload, null, 2))
 
-        const voiceResponse = await fetch("http://localhost:8000/api/upload-voice", {
+      // 1. Upload info and get user_id
+      const infoRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/simulator/data/upload/info`,
+        {
           method: "POST",
-          body: voiceFormData,
-        })
-
-        if (!voiceResponse.ok) {
-          const errorData = await voiceResponse.json()
-          throw new Error(errorData.detail || "Voice upload failed")
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         }
+      )
+
+      if (!infoRes.ok) {
+        const errorText = await infoRes.text()
+        console.error("❌ Server error response:", errorText)
+        throw new Error(`Info upload failed: ${infoRes.status} - ${errorText}`)
+      }
+
+      const infoData = await infoRes.json()
+      console.log("📥 Full response from server:", infoData)
+
+      const userId = infoData.user_id
+
+      if (!userId) {
+        throw new Error("No user_id returned from server")
+      }
+
+      localStorage.setItem("deepmeet-user-id", userId)
+      console.log("✅ user_id saved:", userId)
+
+      // 2. Upload voice file (if exists)
+      if (formData.voiceFile) {
+        const storedUserId = localStorage.getItem("deepmeet-user-id")
+        if (!storedUserId || storedUserId === 'undefined' || storedUserId.trim() === '') {
+          throw new Error("No valid user_id found in localStorage")
+        }
+
+        const voiceFormData = new FormData()
+        voiceFormData.append("user_id", storedUserId)
+        voiceFormData.append("audio", formData.voiceFile)
+
+        let refText = formData.referenceText?.trim()
+        if (!refText) {
+          refText = "Hello, this is a voice reference for the interview simulation."
+        }
+
+        const refBlob = new Blob([refText], { type: "text/plain" })
+        voiceFormData.append("reference_text", refBlob, "reference.txt")
+
+        console.log("📤 Uploading voice for user_id:", storedUserId)
+
+        const refRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/simulator/data/upload/references`,
+          { method: "POST", body: voiceFormData }
+        )
+
+        if (!refRes.ok) {
+          const errorText = await refRes.text()
+          console.error("❌ Voice upload error:", errorText)
+          throw new Error(`Voice upload failed: ${refRes.status} - ${errorText}`)
+        }
+
         console.log("✅ Voice uploaded successfully")
       }
 
-      // 2. Setup
-      console.log("📤 Sending setup request...")
-      const setupResponse = await fetch("http://localhost:8000/api/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      // 3. Impersonate
+      console.log("📤 Starting impersonate for user_id:", userId)
+      const impersonateRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/simulator/setup/impersonate?user_id=${userId}`,
+        { method: "POST" }
+      )
 
-      if (!setupResponse.ok) {
-        const errorData = await setupResponse.json()
-        throw new Error(errorData.detail || "Setup failed")
-      }
-      console.log("✅ Setup completed successfully")
-
-      // Clear saved data
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(STORAGE_KEY)
+      if (!impersonateRes.ok) {
+        const errorText = await impersonateRes.text()
+        console.warn("Impersonate warning:", impersonateRes.status, errorText)
+      } else {
+        console.log("✅ Impersonate successful")
       }
 
+      // 4. Clone
+      console.log("📤 Starting clone for user_id:", userId)
+      const cloneRes = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/simulator/setup/clone?user_id=${userId}`,
+        { method: "POST" }
+      )
+
+      if (!cloneRes.ok) {
+        const errorText = await cloneRes.text()
+        console.warn("Clone warning:", cloneRes.status, errorText)
+      } else {
+        console.log("✅ Clone successful")
+      }
+
+      // 5. Stop any running detector before navigating
+      try {
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/end`,
+          { method: "POST" }
+        ).catch(() => {})
+        console.log("✅ Detector stopped")
+      } catch (e) {
+        console.warn("⚠️ Could not stop detector:", e)
+      }
+
+      // 6. Navigate to meeting
+      console.log("🚀 Navigating to /simulation/meeting")
       router.push("/simulation/meeting")
+
     } catch (error) {
-      console.error("Submission error:", error)
-      alert("Failed to setup interview. Please try again.")
+      console.error("❌ Submission error:", error)
+      alert(error instanceof Error ? error.message : "Failed to setup interview. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
