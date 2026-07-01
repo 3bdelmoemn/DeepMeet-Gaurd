@@ -26,7 +26,7 @@ interface SegmentResult {
 }
 
 // ─── Start Screen Component ────────────────────────────────────────────────────
-function StartScreen({ onStart }: { onStart: () => void }) {
+function StartScreen({ onStart, isStarting }: { onStart: () => void; isStarting: boolean }) {
   return (
     <div className="min-h-[70vh] flex items-center justify-center">
       <div className="text-center space-y-8">
@@ -49,10 +49,15 @@ function StartScreen({ onStart }: { onStart: () => void }) {
 
         <Button
           onClick={onStart}
-          className="group relative h-14 px-8 text-lg font-semibold bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 shadow-xl shadow-primary/25 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 transform hover:scale-105"
+          disabled={isStarting}
+          className="group relative h-14 px-8 text-lg font-semibold bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 shadow-xl shadow-primary/25 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:hover:scale-100"
         >
-          <Play className="mr-2 h-5 w-5 group-hover:animate-pulse" />
-          Start Continuous Detection
+          {isStarting ? (
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-5 w-5 group-hover:animate-pulse" />
+          )}
+          {isStarting ? "Starting Detection..." : "Start Continuous Detection"}
         </Button>
 
         <p className="text-xs text-muted-foreground">
@@ -298,6 +303,7 @@ function processReport(reportData: any, history: SegmentResult[], setHistory: Re
 export default function DetectionPage() {
   const router = useRouter()
   const [sessionStarted, setSessionStarted] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isAborting, setIsAborting] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -309,17 +315,69 @@ export default function DetectionPage() {
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const isMounted = useRef(true)
 
+  // Tracks which start attempt is the "current" one. Replaces the old
+  // isMounted-only gate, which incorrectly discarded a successful backend
+  // start whenever the component remounted while the request was in flight.
+  const startRequestIdRef = useRef(0)
+  const startAbortRef = useRef<AbortController | null>(null)
+
   useEffect(() => {
+    isMounted.current = true
     return () => {
       isMounted.current = false
       if (pollingRef.current) clearInterval(pollingRef.current)
       if (timerRef.current) clearInterval(timerRef.current)
+      // Cancel any start request that's still in flight so it can't resolve
+      // into a stale state update after this instance is gone.
+      startAbortRef.current?.abort()
+    }
+  }, [])
+
+  // ─── Resume an already-running session on mount ────────────────────────────
+  // If a previous start() call succeeded on the backend but the UI never
+  // reflected it (tab refresh, remount, lost state, etc.), reattach instead
+  // of leaving the user stuck on the Start screen.
+  useEffect(() => {
+    const savedMeeting = typeof window !== "undefined" ? localStorage.getItem("deepmeet-meeting") : null
+    if (!savedMeeting) return
+
+    let cancelled = false
+
+    const resume = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/report?meeting_name=${savedMeeting}`
+        )
+        // 404 means the backend has no record of this meeting at all —
+        // treat that as "not actually running", anything else means it
+        // exists (even if there's no report yet).
+        if (res.status === 404) {
+          localStorage.removeItem("deepmeet-meeting")
+          return
+        }
+        if (!cancelled && isMounted.current) {
+          setMeetingName(savedMeeting)
+          setSessionStarted(true)
+          setIsAnalyzing(true)
+        }
+      } catch {
+        // Backend unreachable — leave the saved meeting alone, user can retry.
+      }
+    }
+
+    resume()
+    return () => {
+      cancelled = true
     }
   }, [])
 
   // ─── Stop detection when leaving page ──────────────────────────────────────
   useEffect(() => {
     return () => {
+      // Don't send "end" if a start request is currently in flight for this
+      // instance — that would race the start and create the 409 storm.
+      if (isStarting) return
+
       const stopDetection = async () => {
         try {
           await fetch(`${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/end`, {
@@ -332,6 +390,7 @@ export default function DetectionPage() {
       }
       stopDetection()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ─── Stop detection on browser refresh/close ──────────────────────────────
@@ -361,75 +420,107 @@ export default function DetectionPage() {
 
   // ─── Start Detection ──────────────────────────────────────────────────────
   const startAnalysis = useCallback(async () => {
+    // Guard against double-clicks / accidental double-invocation.
+    if (isStarting) return
+
+    const myRequestId = ++startRequestIdRef.current
+    const controller = new AbortController()
+    startAbortRef.current = controller
+
+    setIsStarting(true)
+
     const newMeetingName = `meeting-${Date.now()}`
     setMeetingName(newMeetingName)
     localStorage.setItem("deepmeet-meeting", newMeetingName)
 
+    const isStale = () => startRequestIdRef.current !== myRequestId
+
     try {
       console.log("🛑 Force stopping any existing detection...")
-      
+
       for (let i = 0; i < 3; i++) {
+        if (isStale()) return
         try {
           const stopRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/end`, {
-            method: "POST"
+            method: "POST",
+            signal: controller.signal,
           })
           if (stopRes.ok) {
             console.log(`✅ Stopped existing detection (attempt ${i + 1})`)
             break
           }
         } catch (e) {
+          if ((e as DOMException)?.name === "AbortError") return
           console.warn(`⚠️ Stop attempt ${i + 1} failed:`, e)
         }
         await new Promise(resolve => setTimeout(resolve, 500))
       }
 
+      if (isStale()) return
       await new Promise(resolve => setTimeout(resolve, 1000))
+      if (isStale()) return
 
       console.log("🚀 Starting new detection...")
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/start?meeting_name=${newMeetingName}`,
-        { method: "POST" }
+        { method: "POST", signal: controller.signal }
       )
-      
+
       if (res.ok) {
         console.log("✅ Detection started for meeting:", newMeetingName)
       } else if (res.status === 409) {
         console.warn("⚠️ Detection still running, forcing restart...")
+        if (isStale()) return
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/end`, {
-          method: "POST"
+          method: "POST",
+          signal: controller.signal,
         })
         await new Promise(resolve => setTimeout(resolve, 1000))
+        if (isStale()) return
         const retryRes = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/deepmeet/detector/start?meeting_name=${newMeetingName}`,
-          { method: "POST" }
+          { method: "POST", signal: controller.signal }
         )
         if (retryRes.ok) {
           console.log("✅ Detection started on retry")
         } else {
           console.error("❌ Retry failed:", await retryRes.text())
           localStorage.removeItem("deepmeet-meeting")
+          if (!isStale() && isMounted.current) setIsStarting(false)
           return
         }
       } else {
         console.error("❌ Failed to start detection:", await res.text())
         localStorage.removeItem("deepmeet-meeting")
+        if (!isStale() && isMounted.current) setIsStarting(false)
         return
       }
     } catch (error) {
+      if ((error as DOMException)?.name === "AbortError") {
+        // Component unmounted mid-request — don't touch localStorage; the
+        // resume-on-mount effect will reconcile with the backend next time
+        // this page loads.
+        return
+      }
       console.error("Start detection error:", error)
       localStorage.removeItem("deepmeet-meeting")
+      if (!isStale() && isMounted.current) setIsStarting(false)
       return
     }
+
+    // A newer start() call superseded this one — discard this result.
+    if (isStale()) return
 
     if (isMounted.current) {
       setSessionStarted(true)
       setIsAnalyzing(true)
       setIsAborting(false)
+      setIsStarting(false)
       setElapsed(0)
       setCurrentSegment(null)
       setHistory([])
     }
-  }, [])
+  }, [isStarting])
 
   // ─── Polling on results ──────────────────────────────────────────────────
   useEffect(() => {
@@ -493,6 +584,9 @@ export default function DetectionPage() {
     } catch (error) {
       console.error("End detection error:", error)
     }
+    // NOTE: "deepmeet-meeting" is intentionally NOT cleared here.
+    // The /results page reads this key from localStorage to know which
+    // meeting_name to fetch. It's cleared there, after a successful fetch.
 
     setTimeout(() => {
       router.push("/results")
@@ -515,6 +609,8 @@ export default function DetectionPage() {
     } catch (error) {
       console.error("End detection error:", error)
     }
+    // NOTE: "deepmeet-meeting" is intentionally NOT cleared here — see
+    // abortAnalysis() above for why.
 
     router.push("/results")
   }, [router])
@@ -533,6 +629,9 @@ export default function DetectionPage() {
     } catch (error) {
       console.error("Stop detection error:", error)
     }
+    // NOTE: "deepmeet-meeting" is intentionally NOT cleared here. This
+    // button just pauses live analysis; the user may still navigate to
+    // /results to view whatever was captured, which needs the meeting name.
   }, [])
 
   const formatTime = (s: number) =>
@@ -552,7 +651,7 @@ export default function DetectionPage() {
           <div className="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-violet-500/5 blur-3xl" />
         </div>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <StartScreen onStart={startAnalysis} />
+          <StartScreen onStart={startAnalysis} isStarting={isStarting} />
         </div>
       </div>
     )

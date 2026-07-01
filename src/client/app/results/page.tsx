@@ -691,12 +691,18 @@ export default function ResultsPage() {
     fetch(`${API}/deepmeet/detector/analysis?meeting_name=${name}`)
       .then(async (res) => {
         if (res.status === 404) {
+          // Analysis not ready yet / meeting not found — keep the saved
+          // name so the user can retry (e.g. refresh) without losing it.
           setLoading(false)
           return
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json = await res.json()
         setData(json)
+        // Only clear once we've actually consumed the meeting name — this
+        // is the single place it gets removed, so /detection can safely
+        // leave it in place when navigating here.
+        localStorage.removeItem("deepmeet-meeting")
       })
       .catch((err) => {
         console.error("Analysis fetch error:", err)
